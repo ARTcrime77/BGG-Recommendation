@@ -15,7 +15,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from ml_engine import BGGMLEngine
 from config import MIN_FEATURE_FREQUENCY, MAX_NEIGHBORS, DEFAULT_NUM_RECOMMENDATIONS
-from test_fixtures import MOCK_GAME_DETAILS, MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA
+try:
+    from .test_fixtures import MOCK_GAME_DETAILS, MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA
+except ImportError:
+    from test_fixtures import MOCK_GAME_DETAILS, MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA
 
 
 class TestBGGMLEngine(unittest.TestCase):

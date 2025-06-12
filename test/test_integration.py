@@ -18,10 +18,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from main import BGGRecommender
 from data_loader import BGGDataLoader
 from ml_engine import BGGMLEngine
-from test_fixtures import (
-    MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
-    MOCK_TOP_GAMES, get_mock_collection_response, get_mock_game_details_response
-)
+try:
+    from .test_fixtures import (
+        MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
+        MOCK_TOP_GAMES, get_mock_collection_response, get_mock_game_details_response
+    )
+except ImportError:
+    from test_fixtures import (
+        MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
+        MOCK_TOP_GAMES, get_mock_collection_response, get_mock_game_details_response
+    )
 
 
 class TestBGGIntegration(unittest.TestCase):

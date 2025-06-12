@@ -16,12 +16,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from data_loader import BGGDataLoader
 from config import CACHE_DIR, TOP500_FILE, GAME_DETAILS_FILE
-from test_fixtures import (
-    MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
-    MOCK_TOP_GAMES, MOCK_TOP500_CACHE, MOCK_GAME_DETAILS_CACHE,
-    get_mock_collection_response, get_mock_game_details_response,
-    get_mock_plays_response, get_mock_scraping_response
-)
+try:
+    from .test_fixtures import (
+        MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
+        MOCK_TOP_GAMES, MOCK_TOP500_CACHE, MOCK_GAME_DETAILS_CACHE,
+        get_mock_collection_response, get_mock_game_details_response,
+        get_mock_plays_response, get_mock_scraping_response
+    )
+except ImportError:
+    from test_fixtures import (
+        MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
+        MOCK_TOP_GAMES, MOCK_TOP500_CACHE, MOCK_GAME_DETAILS_CACHE,
+        get_mock_collection_response, get_mock_game_details_response,
+        get_mock_plays_response, get_mock_scraping_response
+    )
 
 
 class TestBGGDataLoader(unittest.TestCase):
@@ -238,7 +246,8 @@ class TestBGGDataLoader(unittest.TestCase):
             details = self.loader.load_game_details_cache()
         
         self.assertEqual(len(details), len(MOCK_GAME_DETAILS))
-        self.assertIn(174430, details)
+        # JSON keys are strings, so check for string key
+        self.assertIn('174430', details)
     
     def test_load_game_details_cache_missing_file(self):
         """Test loading game details cache when file doesn't exist"""

@@ -12,10 +12,16 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from main import BGGRecommender
-from test_fixtures import (
-    MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
-    MOCK_TOP_GAMES
-)
+try:
+    from .test_fixtures import (
+        MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
+        MOCK_TOP_GAMES
+    )
+except ImportError:
+    from test_fixtures import (
+        MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA, MOCK_GAME_DETAILS,
+        MOCK_TOP_GAMES
+    )
 
 
 class TestBGGRecommender(unittest.TestCase):
@@ -74,6 +80,7 @@ class TestBGGRecommender(unittest.TestCase):
         self.recommender.data_loader.load_top500_games = Mock(return_value=MOCK_TOP_GAMES)
         self.recommender.data_loader.load_game_details_cache = Mock(return_value=MOCK_GAME_DETAILS)
         self.recommender.data_loader.fetch_game_details = Mock(return_value={})
+        self.recommender.data_loader.ask_user_update_choice = Mock(return_value=False)
         
         with patch.object(self.recommender, '_create_games_dataframe') as mock_create_df:
             mock_df = pd.DataFrame(MOCK_TOP_GAMES)

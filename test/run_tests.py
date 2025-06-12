@@ -24,7 +24,7 @@ def run_all_tests():
 def run_specific_test_module(module_name):
     """Run tests from a specific module"""
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromName(f'test.{module_name}')
+    suite = loader.loadTestsFromName('test.{}'.format(module_name))
     
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
@@ -36,27 +36,26 @@ def run_unit_tests():
     loader = unittest.TestLoader()
     start_dir = os.path.dirname(__file__)
     
-    # Load specific unit test modules
-    test_modules = [
-        'test_data_loader',
-        'test_ml_engine', 
-        'test_main'
-    ]
+    # Discover all tests except integration
+    suite = loader.discover(start_dir, pattern='test_*.py')
     
-    suite = unittest.TestSuite()
-    for module in test_modules:
-        module_suite = loader.loadTestsFromName(f'test.{module}')
-        suite.addTest(module_suite)
+    # Filter out integration tests
+    filtered_suite = unittest.TestSuite()
+    for test_group in suite:
+        for test_case in test_group:
+            if 'integration' not in str(test_case).lower():
+                filtered_suite.addTest(test_case)
     
     runner = unittest.TextTestRunner(verbosity=2)
-    result = runner.run(suite)
+    result = runner.run(filtered_suite)
     
     return result.wasSuccessful()
 
 def run_integration_tests():
     """Run only integration tests"""
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromName('test.test_integration')
+    start_dir = os.path.dirname(__file__)
+    suite = loader.discover(start_dir, pattern='test_integration.py')
     
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
@@ -102,7 +101,7 @@ def main():
 def run_tests_based_on_args(args):
     """Run tests based on command line arguments"""
     if args.module:
-        print(f"Running tests from module: {args.module}")
+        print("Running tests from module: {}".format(args.module))
         return run_specific_test_module(args.module)
     elif args.unit:
         print("Running unit tests...")
