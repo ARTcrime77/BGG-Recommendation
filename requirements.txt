@@ -1,0 +1,19 @@
+# BGG ML-Empfehlungssystem Dependencies
+
+# Core Data Science
+numpy>=1.21.0
+pandas>=1.3.0
+scikit-learn>=1.0.0
+
+# Web Scraping und APIs
+requests>=2.25.0
+beautifulsoup4>=4.9.0
+
+# Standardbibliotheken (normalerweise bereits installiert)
+# xml (Teil von Python)
+# json (Teil von Python)
+# os (Teil von Python)
+# datetime (Teil von Python)
+# time (Teil von Python)
+# re (Teil von Python)
+# collections (Teil von Python)
