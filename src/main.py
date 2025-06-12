@@ -6,7 +6,12 @@ import pandas as pd
 import os
 from datetime import datetime
 
-from config import *
+from config import (
+    DEBUG_SHOW_SIMILARITY_DETAILS,
+    DEFAULT_NUM_RECOMMENDATIONS,
+    TOP500_FILE,
+    GAME_DETAILS_FILE
+)
 from data_loader import BGGDataLoader
 from ml_engine import BGGMLEngine
 
@@ -147,7 +152,9 @@ class BGGRecommender:
         
         return True
     
-    def generate_recommendations(self, num_recommendations=DEFAULT_NUM_RECOMMENDATIONS):
+    def generate_recommendations(
+            self, num_recommendations=DEFAULT_NUM_RECOMMENDATIONS
+    ):
         """Generiert personalisierte Empfehlungen"""
         print(f"\n🎯 Generiere {num_recommendations} personalisierte Empfehlungen...")
         
@@ -165,7 +172,8 @@ class BGGRecommender:
         
         # Generiere Empfehlungen
         recommendations = self.ml_engine.generate_recommendations(
-            user_preferences, self.top_games_data, owned_game_ids, num_recommendations
+            user_preferences, self.top_games_data, owned_game_ids,
+            num_recommendations
         )
         
         return recommendations
@@ -177,7 +185,10 @@ class BGGRecommender:
             print("=" * 70)
             
             for i, rec in enumerate(recommendations, 1):
-                print(f"\n{i:2d}. {rec['name']} (BGG Rang #{rec['rank']}) - {rec['year_published']}")
+                rank_info = f"BGG Rang #{rec['rank']}"
+                year_info = rec['year_published']
+                name_line = f"\n{i:2d}. {rec['name']} ({rank_info}) - {year_info}"
+                print(name_line)
                 print(f"    ⭐ Rating: {rec['avg_rating']:.1f}")
                 print(f"    🧩 Komplexität: {rec['complexity']:.1f}/5")
                 print(f"    📂 Kategorien: {', '.join(rec['categories'])}")

@@ -12,7 +12,21 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from collections import Counter
 
-from config import *
+from config import (
+    CACHE_DIR,
+    TOP500_FILE,
+    GAME_DETAILS_FILE,
+    CACHE_MAX_AGE_DAYS,
+    BGG_API_BASE_URL,
+    BGG_BROWSE_URL,
+    API_DELAY,
+    BATCH_SIZE,
+    USER_AGENT,
+    SCRAPING_DELAY,
+    TARGET_TOP_GAMES,
+    MAX_SCRAPING_PAGES,
+    SHOW_PROGRESS_EVERY
+)
 
 
 class BGGDataLoader:
@@ -21,7 +35,9 @@ class BGGDataLoader:
         if not os.path.exists(CACHE_DIR):
             os.makedirs(CACHE_DIR)
     
-    def should_update_cache(self, filepath, max_age_days=CACHE_MAX_AGE_DAYS):
+    def should_update_cache(
+            self, filepath, max_age_days=CACHE_MAX_AGE_DAYS
+    ):
         """Prüft ob Cache-Datei aktualisiert werden sollte"""
         if not os.path.exists(filepath):
             return True
@@ -33,7 +49,8 @@ class BGGDataLoader:
     def ask_user_update_choice(self, cache_type):
         """Fragt den Nutzer ob Cache aktualisiert werden soll"""
         while True:
-            choice = input(f"\n{cache_type} aus dem Internet laden? (j/n): ").lower().strip()
+            prompt = f"\n{cache_type} aus dem Internet laden? (j/n): "
+            choice = input(prompt).lower().strip()
             if choice in ['j', 'ja', 'y', 'yes']:
                 return True
             elif choice in ['n', 'nein', 'no']:
@@ -57,7 +74,9 @@ class BGGDataLoader:
                 print(f"   🔍 Duplikat entfernt: {game['name']} (ID: {game_id})")
         
         if duplicates_found > 0:
-            print(f"✓ {duplicates_found} Duplikate entfernt. {len(unique_games)} eindeutige Spiele übrig.")
+            msg = f"✓ {duplicates_found} Duplikate entfernt. "
+            msg += f"{len(unique_games)} eindeutige Spiele übrig."
+            print(msg)
         else:
             print(f"✓ Keine Duplikate gefunden. {len(unique_games)} eindeutige Spiele.")
         
