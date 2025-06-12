@@ -9,8 +9,9 @@ from datetime import datetime
 from config import (
     DEBUG_SHOW_SIMILARITY_DETAILS,
     DEFAULT_NUM_RECOMMENDATIONS,
-    TOP500_FILE,
-    GAME_DETAILS_FILE
+    TOP_GAMES_FILE,
+    GAME_DETAILS_FILE,
+    TARGET_TOP_GAMES
 )
 from data_loader import BGGDataLoader
 from ml_engine import BGGMLEngine
@@ -55,11 +56,11 @@ class BGGRecommender:
         return True
     
     def load_top_games_data(self):
-        """Lädt Top-Spiele-Daten und stellt sicher, dass 500 eindeutige verfügbar sind"""
-        print("\n🎯 Lade Top 500+ Spiele...")
+        """Lädt Top-Spiele-Daten und stellt sicher, dass TARGET_TOP_GAMES eindeutige verfügbar sind"""
+        print(f"\n🎯 Lade Top {TARGET_TOP_GAMES}+ Spiele...")
         
-        # Lade Top 500+ Liste (automatisch erweitert auf 500 eindeutige)
-        top_games_list = self.data_loader.load_top500_games()
+        # Lade Top-Spiele Liste (automatisch erweitert auf TARGET_TOP_GAMES eindeutige)
+        top_games_list = self.data_loader.load_top_games()
         
         if not top_games_list:
             print("❌ Keine Top-Spiele gefunden")
@@ -181,7 +182,7 @@ class BGGRecommender:
     def display_recommendations(self, recommendations):
         """Zeigt Empfehlungen formatiert an"""
         if recommendations:
-            print(f"\n🎯 Top {len(recommendations)} ML-Empfehlungen aus den BGG Top 500:")
+            print(f"\n🎯 Top {len(recommendations)} ML-Empfehlungen aus den BGG Top {TARGET_TOP_GAMES}:")
             print("=" * 70)
             
             for i, rec in enumerate(recommendations, 1):
@@ -204,23 +205,23 @@ class BGGRecommender:
     def show_cache_info(self):
         """Zeigt Cache-Informationen an"""
         print(f"\n📁 Cache-Info:")
-        if os.path.exists(TOP500_FILE):
-            cache_time = datetime.fromtimestamp(os.path.getmtime(TOP500_FILE))
-            print(f"   Top 500: {cache_time.strftime('%d.%m.%Y %H:%M')}")
+        if os.path.exists(TOP_GAMES_FILE):
+            cache_time = datetime.fromtimestamp(os.path.getmtime(TOP_GAMES_FILE))
+            print(f"   Top {TARGET_TOP_GAMES}: {cache_time.strftime('%d.%m.%Y %H:%M')}")
         if os.path.exists(GAME_DETAILS_FILE):
             cache_time = datetime.fromtimestamp(os.path.getmtime(GAME_DETAILS_FILE))
             print(f"   Spieldetails: {cache_time.strftime('%d.%m.%Y %H:%M')}")
     
     def run_analysis(self):
         """Führt die komplette ML-Analyse durch"""
-        print("🤖 BGG ML-Empfehlungssystem mit 500 eindeutigen Top-Spielen")
+        print(f"🤖 BGG ML-Empfehlungssystem mit {TARGET_TOP_GAMES} eindeutigen Top-Spielen")
         print("=" * 65)
         
         # 1. Nutzerdaten laden
         if not self.load_user_data():
             return
         
-        # 2. Top-Spiele laden (automatisch auf 500 eindeutige erweitert)
+        # 2. Top-Spiele laden (automatisch auf TARGET_TOP_GAMES eindeutige erweitert)
         if not self.load_top_games_data():
             return
         

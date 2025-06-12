@@ -6,20 +6,20 @@ import os
 
 # Cache-Einstellungen
 CACHE_DIR = "bgg_cache"
-TOP500_FILE = os.path.join(CACHE_DIR, "top500_games.json")
+TOP_GAMES_FILE = os.path.join(CACHE_DIR, "top_games.json")
 GAME_DETAILS_FILE = os.path.join(CACHE_DIR, "game_details.json")
 CACHE_MAX_AGE_DAYS = 7
 
 # BGG API-Einstellungen
 BGG_API_BASE_URL = "https://boardgamegeek.com/xmlapi2"
-BGG_BROWSE_URL = "https://boardgamegeek.com/browse/boardgame"
+BGG_BROWSE_URL = "https://boardgamegeek.com/browse/boardgame/page/"
 API_DELAY = 1.5  # Sekunden zwischen API-Calls
 BATCH_SIZE = 20  # Anzahl Spiele pro API-Request
 
 # Web-Scraping Einstellungen
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 SCRAPING_DELAY = 2  # Sekunden zwischen Web-Requests
-TARGET_TOP_GAMES = 500  # Ziel: 500 eindeutige Spiele
+TARGET_TOP_GAMES = 1000  # Ziel: gewünschte Anzahl eindeutiger Spiele
 MAX_SCRAPING_PAGES = 10  # Maximal 10 Seiten (1000 Spiele) scrapen
 
 # ML-Einstellungen
@@ -33,9 +33,9 @@ PLAY_COUNT_LOG_BASE = 1  # Basis für Logarithmus der Spielanzahl
 
 # Erweiterte Gewichtungsparameter (NEU)
 USER_PREFERENCE_WEIGHTS = {
-    'rating_weight': 3.0,           # Bewertungen stärker gewichten
-    'play_count_weight': 1.5,       # Spielhäufigkeit
-    'recency_weight': 0.8,          # Neuere Bewertungen bevorzugen
+    'rating_weight': 5.0,           # Bewertungen stärker gewichten
+    'play_count_weight': 0.5,       # Spielhäufigkeit
+    'recency_weight': 1.5,          # Neuere Bewertungen bevorzugen
     'consistency_weight': 0.5,      # Konsistenz der Bewertungen
     'complexity_match_weight': 1.2, # Komplexitäts-Präferenz
     'time_preference_weight': 0.7   # Spielzeit-Präferenz

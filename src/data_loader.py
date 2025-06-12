@@ -14,7 +14,7 @@ from collections import Counter
 
 from config import (
     CACHE_DIR,
-    TOP500_FILE,
+    TOP_GAMES_FILE,
     GAME_DETAILS_FILE,
     CACHE_MAX_AGE_DAYS,
     BGG_API_BASE_URL,
@@ -269,7 +269,7 @@ class BGGDataLoader:
         # Fülle mit generierten Spielen auf bis TARGET_TOP_GAMES erreicht ist
         while len(extended_games) < TARGET_TOP_GAMES:
             rank = len(extended_games) + 1
-            game_id = 500000 + rank  # Hohe IDs um Kollisionen zu vermeiden
+            game_id = 500000 + rank  # Hohe IDs um Kollisionen zu vermeiden (unabhängig von TARGET_TOP_GAMES)
             
             extended_games.append({
                 'rank': rank,
@@ -301,13 +301,13 @@ class BGGDataLoader:
             }
         }
         
-        with open(TOP500_FILE, 'w', encoding='utf-8') as f:
+        with open(TOP_GAMES_FILE, 'w', encoding='utf-8') as f:
             json.dump(cache_data, f, indent=2, ensure_ascii=False)
     
-    def load_top500_games(self):
+    def load_top_games(self):
         """Lädt Top-Spiele und stellt sicher, dass TARGET_TOP_GAMES eindeutige verfügbar sind"""
-        cache_exists = os.path.exists(TOP500_FILE)
-        should_update = self.should_update_cache(TOP500_FILE)
+        cache_exists = os.path.exists(TOP_GAMES_FILE)
+        should_update = self.should_update_cache(TOP_GAMES_FILE)
         
         if cache_exists and not should_update:
             print(f"📁 Top {TARGET_TOP_GAMES} Cache gefunden (weniger als {CACHE_MAX_AGE_DAYS} Tage alt)")
@@ -324,7 +324,7 @@ class BGGDataLoader:
         else:
             print(f"📖 Lade Top {TARGET_TOP_GAMES} aus lokalem Cache...")
             try:
-                with open(TOP500_FILE, 'r', encoding='utf-8') as f:
+                with open(TOP_GAMES_FILE, 'r', encoding='utf-8') as f:
                     cache_data = json.load(f)
                     top_games = cache_data['games']
                     cache_time = cache_data.get('timestamp', 'Unbekannt')
