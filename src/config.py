@@ -8,6 +8,8 @@ import os
 CACHE_DIR = "bgg_cache"
 TOP_GAMES_FILE = os.path.join(CACHE_DIR, "top_games.json")
 GAME_DETAILS_FILE = os.path.join(CACHE_DIR, "game_details.json")
+USER_COLLECTION_FILE = os.path.join(CACHE_DIR, "user_collection.json")
+USER_PLAYS_FILE = os.path.join(CACHE_DIR, "user_plays.json")
 CACHE_MAX_AGE_DAYS = 7
 
 # BGG API-Einstellungen
