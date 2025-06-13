@@ -339,9 +339,20 @@ class TestBGGMLEngine(unittest.TestCase):
         distances = np.array([0.1, 0.2, 0.3])
         owned_game_ids = {174430}  # Own first game
         
+        mock_user_prefs = {
+            'complexity': 3.0, 
+            'playing_time': 90,
+            'designer_loyalty': Counter(),
+            'preferred_eras': Counter(),
+            'categories': Counter({'Adventure': 0.7}),
+            'mechanics': Counter({'Card Drafting': 0.6}),
+            'designers': Counter({'Isaac Childres': 0.4}),
+            'artists': Counter(),
+            'publishers': Counter()
+        }
         with patch('ml_engine.DEBUG_SHOW_SIMILARITY_DETAILS', False):
-            recommendations = self.engine._filter_and_rank_recommendations(
-                self.test_games_df, indices, distances, owned_game_ids, 2
+            recommendations = self.engine._advanced_filter_and_rank_recommendations(
+                self.test_games_df, indices, distances, owned_game_ids, mock_user_prefs, 2
             )
         
         self.assertLessEqual(len(recommendations), 2)
@@ -355,10 +366,11 @@ class TestBGGMLEngine(unittest.TestCase):
         distances = np.array([0.1, 0.2, 0.3])
         owned_game_ids = set()
         
+        mock_user_prefs = {'complexity': 3.0, 'playing_time': 90}
         with patch('ml_engine.DEBUG_SHOW_SIMILARITY_DETAILS', True):
             with patch('builtins.print'):
-                recommendations = self.engine._filter_and_rank_recommendations(
-                    self.test_games_df, indices, distances, owned_game_ids, 3
+                recommendations = self.engine._advanced_filter_and_rank_recommendations(
+                    self.test_games_df, indices, distances, owned_game_ids, mock_user_prefs, 3
                 )
         
         self.assertEqual(len(recommendations), 3)
