@@ -104,6 +104,9 @@ The test suite covers:
 - User preference vector generation
 - Recommendation generation and filtering
 - Categorical feature encoding
+- BGG rating exclusion from ML features (configurable)
+- Non-linear rating weighting system
+- Quality filtering with BGG ratings
 
 ### BGGRecommender
 - Complete workflow orchestration

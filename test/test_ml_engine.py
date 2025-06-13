@@ -14,7 +14,7 @@ from collections import Counter
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from ml_engine import BGGMLEngine
-from config import MIN_FEATURE_FREQUENCY, MAX_NEIGHBORS, DEFAULT_NUM_RECOMMENDATIONS
+from config import MIN_FEATURE_FREQUENCY, MAX_NEIGHBORS, DEFAULT_NUM_RECOMMENDATIONS, EXCLUDE_BGG_RATING_FROM_FEATURES
 try:
     from .test_fixtures import MOCK_GAME_DETAILS, MOCK_COLLECTION_DATA, MOCK_PLAYS_DATA
 except ImportError:
@@ -93,7 +93,9 @@ class TestBGGMLEngine(unittest.TestCase):
         self.assertTrue(result)
         self.assertIsNotNone(self.engine.feature_matrix)
         self.assertEqual(self.engine.feature_matrix.shape[0], 3)  # 3 games
-        self.assertGreater(self.engine.feature_matrix.shape[1], 7)  # More than 7 numeric features
+        # Features include numeric (6 or 7) + categorical features
+        expected_min_features = 6 if EXCLUDE_BGG_RATING_FROM_FEATURES else 7
+        self.assertGreaterEqual(self.engine.feature_matrix.shape[1], expected_min_features)
     
     def test_create_feature_matrix_empty_dataframe(self):
         """Test feature matrix creation with empty DataFrame"""
@@ -364,6 +366,272 @@ class TestBGGMLEngine(unittest.TestCase):
         for i, rec in enumerate(recommendations):
             expected_similarity = 1 - distances[i]
             self.assertAlmostEqual(rec['similarity_score'], expected_similarity, places=3)
+
+    def test_feature_matrix_with_bgg_rating_excluded(self):
+        """Test feature matrix creation with BGG rating excluded"""
+        with patch('ml_engine.EXCLUDE_BGG_RATING_FROM_FEATURES', True):
+            engine = BGGMLEngine()
+            result = engine.create_feature_matrix(self.test_games_df)
+            
+            self.assertTrue(result)
+            # Should have 6 numeric features instead of 7 when BGG rating excluded
+            # Plus categorical features (varies based on data)
+            expected_min_features = 6  # numeric only
+            self.assertGreaterEqual(engine.feature_matrix.shape[1], expected_min_features)
+            
+            # Feature matrix should not be None
+            self.assertIsNotNone(engine.feature_matrix)
+
+    def test_feature_matrix_with_bgg_rating_included(self):
+        """Test feature matrix creation with BGG rating included"""
+        with patch('ml_engine.EXCLUDE_BGG_RATING_FROM_FEATURES', False):
+            engine = BGGMLEngine()
+            result = engine.create_feature_matrix(self.test_games_df)
+            
+            self.assertTrue(result)
+            # Should have 7 numeric features when BGG rating included
+            expected_min_features = 7  # numeric only
+            self.assertGreaterEqual(engine.feature_matrix.shape[1], expected_min_features)
+
+    def test_feature_matrix_shape_difference(self):
+        """Test that feature matrix has different shapes with/without BGG rating"""
+        # Test with BGG rating excluded
+        with patch('ml_engine.EXCLUDE_BGG_RATING_FROM_FEATURES', True):
+            engine_excluded = BGGMLEngine()
+            engine_excluded.create_feature_matrix(self.test_games_df)
+            shape_excluded = engine_excluded.feature_matrix.shape
+        
+        # Test with BGG rating included
+        with patch('ml_engine.EXCLUDE_BGG_RATING_FROM_FEATURES', False):
+            engine_included = BGGMLEngine()
+            engine_included.create_feature_matrix(self.test_games_df)
+            shape_included = engine_included.feature_matrix.shape
+        
+        # Should have 1 less feature when excluded
+        self.assertEqual(shape_included[1] - shape_excluded[1], 1)
+        # Same number of games
+        self.assertEqual(shape_included[0], shape_excluded[0])
+
+    def test_user_feature_vector_with_bgg_rating_excluded(self):
+        """Test user feature vector creation with BGG rating excluded"""
+        import config
+        original_setting = config.EXCLUDE_BGG_RATING_FROM_FEATURES
+        
+        try:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = True
+            
+            engine = BGGMLEngine()
+            engine.create_feature_matrix(self.test_games_df)  # Setup feature_info
+            
+            # Mock scaler
+            engine.scaler = Mock()
+            # Expected: 6 numeric + 8 categorical features (based on test data)
+            engine.scaler.transform.return_value = np.array([[1, 2, 3, 4, 5, 6, 0.5, 0.3, 0.2, 0.1, 0.0, 0.0, 0.0, 0.0]])
+            
+            user_prefs = {
+                'avg_rating': 8.0,  # Still calculated but not used in vector
+                'complexity': 3.0,
+                'min_players': 2,
+                'max_players': 4,
+                'playing_time': 90,
+                'year_published': 2018,
+                'categories': Counter({'Adventure': 0.7}),
+                'mechanics': Counter({'Card Drafting': 0.6}),
+                'designers': Counter(),
+                'artists': Counter(),
+                'publishers': Counter()
+            }
+            
+            result = engine._create_user_feature_vector(user_prefs)
+            
+            self.assertIsNotNone(result)
+            engine.scaler.transform.assert_called_once()
+            
+            # Verify the input to scaler.transform doesn't include avg_rating at position 0
+            call_args = engine.scaler.transform.call_args[0][0]
+            expected_first_feature = 3.0  # complexity should be first, not avg_rating
+            self.assertEqual(call_args[0, 0], expected_first_feature)
+            
+        finally:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = original_setting
+
+    def test_user_feature_vector_with_bgg_rating_included(self):
+        """Test user feature vector creation with BGG rating included"""
+        import config
+        original_setting = config.EXCLUDE_BGG_RATING_FROM_FEATURES
+        
+        try:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = False
+            
+            engine = BGGMLEngine()
+            engine.create_feature_matrix(self.test_games_df)  # Setup feature_info
+            
+            # Mock scaler
+            engine.scaler = Mock()
+            # Expected: 7 numeric + categorical features
+            engine.scaler.transform.return_value = np.array([[1, 2, 3, 4, 5, 6, 7, 0.5, 0.3, 0.2, 0.1, 0.0, 0.0, 0.0, 0.0]])
+            
+            user_prefs = {
+                'avg_rating': 8.0,
+                'complexity': 3.0,
+                'min_players': 2,
+                'max_players': 4,
+                'playing_time': 90,
+                'year_published': 2018,
+                'categories': Counter({'Adventure': 0.7}),
+                'mechanics': Counter({'Card Drafting': 0.6}),
+                'designers': Counter(),
+                'artists': Counter(),
+                'publishers': Counter()
+            }
+            
+            result = engine._create_user_feature_vector(user_prefs)
+            
+            self.assertIsNotNone(result)
+            engine.scaler.transform.assert_called_once()
+            
+            # Verify the input to scaler.transform includes avg_rating at position 0
+            call_args = engine.scaler.transform.call_args[0][0]
+            expected_first_feature = 8.0  # avg_rating should be first
+            self.assertEqual(call_args[0, 0], expected_first_feature)
+            
+        finally:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = original_setting
+
+    def test_feature_count_reporting(self):
+        """Test that feature count reporting is accurate with/without BGG rating"""
+        import config
+        original_setting = config.EXCLUDE_BGG_RATING_FROM_FEATURES
+        
+        try:
+            # Test with BGG rating excluded
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = True
+            engine_excluded = BGGMLEngine()
+            
+            # Capture print output
+            with patch('builtins.print') as mock_print:
+                engine_excluded.create_feature_matrix(self.test_games_df)
+            
+            # Find the call that contains "6 numerisch" 
+            numeric_feature_calls = [call for call in mock_print.call_args_list 
+                                   if len(call[0]) > 0 and "numerisch" in str(call[0][0])]
+            self.assertTrue(any("6 numerisch" in str(call[0][0]) for call in numeric_feature_calls))
+            
+            # Test with BGG rating included
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = False
+            engine_included = BGGMLEngine()
+            
+            with patch('builtins.print') as mock_print:
+                engine_included.create_feature_matrix(self.test_games_df)
+            
+            # Find the call that contains "7 numerisch"
+            numeric_feature_calls = [call for call in mock_print.call_args_list 
+                                   if len(call[0]) > 0 and "numerisch" in str(call[0][0])]
+            self.assertTrue(any("7 numerisch" in str(call[0][0]) for call in numeric_feature_calls))
+            
+        finally:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = original_setting
+
+    def test_recommendations_still_work_without_bgg_rating(self):
+        """Test that recommendation generation still works when BGG rating excluded from features"""
+        import config
+        original_setting = config.EXCLUDE_BGG_RATING_FROM_FEATURES
+        
+        try:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = True
+            
+            engine = BGGMLEngine()
+            engine.create_feature_matrix(self.test_games_df)
+            engine.train_model()
+            
+            user_prefs = {
+                'avg_rating': 8.0,  # Still calculated for preferences
+                'complexity': 3.0,
+                'min_players': 2,
+                'max_players': 4,
+                'playing_time': 90,
+                'year_published': 2018,
+                'categories': Counter({'Adventure': 0.7}),
+                'mechanics': Counter({'Card Drafting': 0.6}),
+                'designers': Counter(),
+                'artists': Counter(),
+                'publishers': Counter()
+            }
+            
+            owned_game_ids = {174430}  # Own Gloomhaven
+            
+            recommendations = engine.generate_recommendations(
+                user_prefs, self.test_games_df, owned_game_ids, 2
+            )
+            
+            # Should still generate recommendations
+            self.assertIsNotNone(recommendations)
+            # Should not recommend owned games
+            for rec in recommendations:
+                self.assertNotIn(rec['id'], owned_game_ids)
+                
+        finally:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = original_setting
+
+    def test_bgg_rating_still_used_as_quality_filter(self):
+        """Test that BGG rating is still used as quality filter even when excluded from features"""
+        import config
+        original_setting = config.EXCLUDE_BGG_RATING_FROM_FEATURES
+        
+        try:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = True
+            
+            # Create test data with low-rated game
+            test_df = self.test_games_df.copy()
+            low_rated_game = {
+                'id': 999999,
+                'name': 'Bad Game',
+                'categories': ['Adventure'],
+                'mechanics': ['Action Points'],
+                'designers': ['Bad Designer'],
+                'artists': ['Bad Artist'],
+                'publishers': ['Bad Publisher'],
+                'year_published': 2020,
+                'avg_rating': 4.0,  # Below 5.0 threshold
+                'complexity': 2.0,
+                'min_players': 2,
+                'max_players': 4,
+                'playing_time': 60,
+                'rank': 9999
+            }
+            test_df = pd.concat([test_df, pd.DataFrame([low_rated_game])], ignore_index=True)
+            
+            engine = BGGMLEngine()
+            engine.create_feature_matrix(test_df)
+            engine.train_model()
+            
+            # Mock user preferences
+            user_prefs = {
+                'avg_rating': 8.0,
+                'complexity': 2.0,  # Similar to bad game
+                'min_players': 2,
+                'max_players': 4,
+                'playing_time': 60,  # Similar to bad game
+                'year_published': 2020,
+                'categories': Counter({'Adventure': 1.0}),  # Same category
+                'mechanics': Counter({'Action Points': 1.0}),  # Same mechanic
+                'designers': Counter(),
+                'artists': Counter(),
+                'publishers': Counter()
+            }
+            
+            owned_game_ids = set()
+            
+            recommendations = engine.generate_recommendations(
+                user_prefs, test_df, owned_game_ids, 10
+            )
+            
+            # Bad game should be filtered out despite similar features
+            bad_game_recommended = any(rec['id'] == 999999 for rec in recommendations)
+            self.assertFalse(bad_game_recommended, "Low-rated game should be filtered out by quality filter")
+            
+        finally:
+            config.EXCLUDE_BGG_RATING_FROM_FEATURES = original_setting
 
 
 if __name__ == '__main__':
