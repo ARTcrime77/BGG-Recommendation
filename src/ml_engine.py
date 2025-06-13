@@ -496,19 +496,40 @@ class BGGMLEngine:
         if user_vector is None:
             return []
         
+        # Mindestens 10 Empfehlungen anstreben
+        min_recommendations = 10
+        target_recommendations = max(num_recommendations, min_recommendations)
+        
         # Finde ähnliche Spiele mit erweiterten Parametern
         # Mehr Nachbarn bei starken Präferenzen, weniger bei schwachen
         preference_strength = user_preferences.get('preference_strength', 0.5)
         neighbor_multiplier = 2 + int(preference_strength * 2)  # 2-4x
-        max_neighbors = min(num_recommendations * neighbor_multiplier, len(games_df))
+        max_neighbors = min(target_recommendations * neighbor_multiplier, len(games_df))
         
-        distances, indices = self.ml_model.kneighbors(user_vector, n_neighbors=max_neighbors)
+        # Iterativ mehr Nachbarn suchen, bis genügend Empfehlungen gefunden
+        attempt = 1
+        max_attempts = 3
         
-        # Erweiterte Filterung und Ranking
-        return self._advanced_filter_and_rank_recommendations(
-            games_df, indices[0], distances[0], owned_game_ids, 
-            user_preferences, num_recommendations
-        )
+        while attempt <= max_attempts:
+            current_neighbors = min(max_neighbors * attempt, len(games_df))
+            distances, indices = self.ml_model.kneighbors(user_vector, n_neighbors=current_neighbors)
+            
+            # Erweiterte Filterung und Ranking
+            recommendations = self._advanced_filter_and_rank_recommendations(
+                games_df, indices[0], distances[0], owned_game_ids, 
+                user_preferences, target_recommendations
+            )
+            
+            # Prüfe ob genügend Empfehlungen gefunden wurden
+            if len(recommendations) >= min_recommendations or attempt == max_attempts:
+                if len(recommendations) < min_recommendations and attempt == max_attempts:
+                    print(f"⚠️  Nur {len(recommendations)} Empfehlungen gefunden (weniger als {min_recommendations})")
+                return recommendations[:num_recommendations]
+            
+            print(f"🔍 Versuch {attempt}: {len(recommendations)} Empfehlungen gefunden, erweitere Suche...")
+            attempt += 1
+        
+        return []
     
     def _create_user_feature_vector(self, user_prefs):
         """Erstellt Feature-Vektor für Nutzerpräferenzen"""
@@ -550,6 +571,7 @@ class BGGMLEngine:
         """Erweiterte Filterung und Ranking mit Präferenz-Matching"""
         seen_game_ids = set()
         recommendations = []
+        filtered_out_count = 0
         
         if DEBUG_SHOW_SIMILARITY_DETAILS:
             print(f"🔍 Analysiere {len(indices)} ähnliche Spiele mit erweiterten Kriterien...")
@@ -559,53 +581,78 @@ class BGGMLEngine:
         preferred_time_range = self._get_time_range(user_preferences)
         preferred_eras = user_preferences.get('preferred_eras', Counter())
         
-        for i, idx in enumerate(indices):
-            game = games_df.iloc[idx]
-            game_id = game['id']
+        # Erweitere Filter-Bereiche wenn zu wenige Empfehlungen gefunden werden
+        min_recommendations = 10
+        initial_filter_strict = True
+        
+        for pass_num in range(2):  # Zwei Durchgänge: strikt, dann entspannt
+            if pass_num == 1 and len(recommendations) >= min_recommendations:
+                break  # Genügend Empfehlungen im ersten Durchgang
             
-            # Basis-Filter: Bereits besessen oder duplikat
-            if game_id in owned_game_ids or game_id in seen_game_ids:
-                continue
+            if pass_num == 1:
+                # Entspannte Filter für zweiten Durchgang
+                complexity_range = self._get_relaxed_complexity_range(user_preferences)
+                preferred_time_range = self._get_relaxed_time_range(user_preferences)
+                if DEBUG_SHOW_SIMILARITY_DETAILS:
+                    print(f"🔄 Erweitere Filter-Kriterien für mehr Empfehlungen...")
             
-            # Erweiterte Filter
-            if not self._passes_advanced_filters(game, user_preferences, complexity_range, preferred_time_range):
-                continue
-            
-            seen_game_ids.add(game_id)
-            
-            # Berechne erweiterten Ähnlichkeits-Score
-            base_similarity = 1 - distances[i]
-            enhanced_score = self._calculate_enhanced_similarity_score(
-                game, user_preferences, base_similarity
-            )
-            
-            # Debug-Info für erste paar Spiele
-            if DEBUG_SHOW_SIMILARITY_DETAILS and len(recommendations) < 5:
-                print(f"   {len(recommendations)+1}. {game['name']} (ID: {game_id})")
-                print(f"      Basis-Ähnlichkeit: {base_similarity:.3f}")
-                print(f"      Erweiterte Ähnlichkeit: {enhanced_score:.3f}")
-            
-            recommendations.append({
-                'rank': game['rank'],
-                'id': game_id,
-                'name': game['name'],
-                'avg_rating': game['avg_rating'],
-                'complexity': game['complexity'],
-                'categories': game['categories'][:3],
-                'mechanics': game['mechanics'][:3],
-                'designers': game['designers'][:2],
-                'artists': game['artists'][:2],
-                'year_published': game['year_published'],
-                'similarity_score': enhanced_score,
-                'base_similarity': base_similarity,
-                'match_reasons': self._get_match_reasons(game, user_preferences)
-            })
+            for i, idx in enumerate(indices):
+                game = games_df.iloc[idx]
+                game_id = game['id']
+                
+                # Basis-Filter: Bereits besessen oder duplikat
+                if game_id in owned_game_ids or game_id in seen_game_ids:
+                    continue
+                
+                # Erweiterte Filter (entspannt im zweiten Durchgang)
+                if pass_num == 0 and not self._passes_advanced_filters(game, user_preferences, complexity_range, preferred_time_range):
+                    filtered_out_count += 1
+                    continue
+                elif pass_num == 1 and not self._passes_relaxed_filters(game, user_preferences, complexity_range, preferred_time_range):
+                    continue
+                
+                seen_game_ids.add(game_id)
+                
+                # Berechne erweiterten Ähnlichkeits-Score
+                base_similarity = 1 - distances[i]
+                enhanced_score = self._calculate_enhanced_similarity_score(
+                    game, user_preferences, base_similarity
+                )
+                
+                # Debug-Info für erste paar Spiele
+                if DEBUG_SHOW_SIMILARITY_DETAILS and len(recommendations) < 5:
+                    filter_info = "(entspannt)" if pass_num == 1 else ""
+                    print(f"   {len(recommendations)+1}. {game['name']} (ID: {game_id}) {filter_info}")
+                    print(f"      Basis-Ähnlichkeit: {base_similarity:.3f}")
+                    print(f"      Erweiterte Ähnlichkeit: {enhanced_score:.3f}")
+                
+                recommendations.append({
+                    'rank': game['rank'],
+                    'id': game_id,
+                    'name': game['name'],
+                    'avg_rating': game['avg_rating'],
+                    'complexity': game['complexity'],
+                    'categories': game['categories'][:3],
+                    'mechanics': game['mechanics'][:3],
+                    'designers': game['designers'][:2],
+                    'artists': game['artists'][:2],
+                    'year_published': game['year_published'],
+                    'similarity_score': enhanced_score,
+                    'base_similarity': base_similarity,
+                    'match_reasons': self._get_match_reasons(game, user_preferences)
+                })
+                
+                if len(recommendations) >= num_recommendations:
+                    break
             
             if len(recommendations) >= num_recommendations:
                 break
         
         # Sortiere nach erweitertem Ähnlichkeits-Score
         recommendations.sort(key=lambda x: x['similarity_score'], reverse=True)
+        
+        if filtered_out_count > 0 and DEBUG_SHOW_SIMILARITY_DETAILS:
+            print(f"📊 {filtered_out_count} Spiele durch erweiterte Filter ausgeschlossen")
         
         print(f"✓ {len(recommendations)} erweiterte Empfehlungen gefunden")
         return recommendations
@@ -632,6 +679,28 @@ class BGGMLEngine:
         
         return (max(5, avg_time - range_width), avg_time + range_width)
     
+    def _get_relaxed_complexity_range(self, user_preferences):
+        """Bestimmt erweiterte akzeptable Komplexitäts-Range für entspannte Filter"""
+        avg_complexity = user_preferences.get('complexity', 2.5)
+        complexity_variance = user_preferences.get('complexity_variance', 0.5)
+        
+        # Erweitere Bereich um 50% für entspannte Filter
+        range_width = (0.5 + complexity_variance) * 1.5
+        
+        return (max(1.0, avg_complexity - range_width), 
+                min(5.0, avg_complexity + range_width))
+    
+    def _get_relaxed_time_range(self, user_preferences):
+        """Bestimmt erweiterte akzeptable Spielzeit-Range für entspannte Filter"""
+        avg_time = user_preferences.get('playing_time', 60)
+        time_variance = user_preferences.get('time_variance', 900)
+        
+        # Erweitere Bereich um 100% für entspannte Filter
+        range_factor = np.sqrt(time_variance) / 10
+        range_width = max(15, avg_time * 0.3 + range_factor) * 2
+        
+        return (max(5, avg_time - range_width), avg_time + range_width)
+    
     def _passes_advanced_filters(self, game, user_preferences, complexity_range, time_range):
         """Prüft ob Spiel erweiterte Filter passiert"""
         # Komplexitäts-Filter
@@ -643,6 +712,23 @@ class BGGMLEngine:
             return False
         
         # Weitere Filter können hier hinzugefügt werden
+        return True
+    
+    def _passes_relaxed_filters(self, game, user_preferences, complexity_range, time_range):
+        """Prüft ob Spiel entspannte Filter passiert (weniger strikt)"""
+        # Nur grundlegende Filter für entspannte Suche
+        # Komplexitäts-Filter (erweitert)
+        if not (complexity_range[0] <= game['complexity'] <= complexity_range[1]):
+            return False
+        
+        # Spielzeit-Filter (erweitert)
+        if not (time_range[0] <= game['playing_time'] <= time_range[1]):
+            return False
+        
+        # Sehr niedrige Bewertungen ausschließen
+        if game['avg_rating'] < 5.0:
+            return False
+        
         return True
     
     def _calculate_enhanced_similarity_score(self, game, user_preferences, base_similarity):

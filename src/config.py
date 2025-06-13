@@ -33,7 +33,7 @@ PLAY_COUNT_LOG_BASE = 1  # Basis für Logarithmus der Spielanzahl
 
 # Erweiterte Gewichtungsparameter (NEU)
 USER_PREFERENCE_WEIGHTS = {
-    'rating_weight': 5.0,           # Bewertungen stärker gewichten
+    'rating_weight': 3.0,           # Bewertungen stärker gewichten
     'play_count_weight': 0.5,       # Spielhäufigkeit
     'recency_weight': 1.5,          # Neuere Bewertungen bevorzugen
     'consistency_weight': 0.5,      # Konsistenz der Bewertungen
@@ -47,6 +47,6 @@ MIN_PLAYS_FOR_CONSISTENCY = 3  # Mindest-Spiele für Konsistenz-Berechnung
 RECENT_THRESHOLD_MONTHS = 6   # Spiele der letzten 6 Monate als "recent" betrachten
 
 # Ausgabe-Einstellungen
-DEFAULT_NUM_RECOMMENDATIONS = 10
+DEFAULT_NUM_RECOMMENDATIONS = 20
 DEBUG_SHOW_SIMILARITY_DETAILS = True
 SHOW_PROGRESS_EVERY = 40  # Progress-Update alle X Spiele

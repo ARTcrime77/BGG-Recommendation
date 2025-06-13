@@ -50,8 +50,21 @@ class BGGRecommender:
         user_game_ids = [game['id'] for game in self.collection_data]
         print(f"\n🔍 Lade Details für {len(user_game_ids)} Spiele aus Ihrer Sammlung...")
         
-        user_game_details = self.data_loader.fetch_game_details(user_game_ids)
-        self.game_details.update(user_game_details)
+        # Lade bereits gecachte Details
+        cached_details = self.data_loader.load_game_details_cache()
+        self.game_details.update(cached_details)
+        
+        # Finde fehlende User-Spiel-Details
+        missing_user_ids = [gid for gid in user_game_ids if gid not in self.game_details]
+        
+        if missing_user_ids:
+            print(f"🔍 Lade Details für {len(missing_user_ids)} neue Spiele aus Ihrer Sammlung...")
+            user_game_details = self.data_loader.fetch_game_details(missing_user_ids)
+            self.game_details.update(user_game_details)
+            # Speichere aktualisierte Details im Cache
+            self.data_loader.save_game_details_cache(self.game_details)
+        else:
+            print("✓ Alle Spiele aus Ihrer Sammlung bereits im Cache")
         
         return True
     
@@ -68,19 +81,16 @@ class BGGRecommender:
         
         print(f"✓ {len(top_games_list)} eindeutige Top-Spiele für ML-Training verfügbar")
         
-        # Lade Cache für Spieldetails
-        cached_details = self.data_loader.load_game_details_cache()
-        self.game_details.update(cached_details)
+        # Cache bereits in load_user_data() geladen
+        print(f"📊 {len(self.game_details)} Spieldetails bereits im Speicher")
         
         # Finde Spiele, für die wir noch keine Details haben
         top_game_ids = [game['id'] for game in top_games_list]
         missing_ids = [gid for gid in top_game_ids if gid not in self.game_details]
         
         if missing_ids:
-            should_fetch = True
-            if cached_details:
-                print(f"📊 {len(missing_ids)} Spiele brauchen noch Details")
-                should_fetch = self.data_loader.ask_user_update_choice("Fehlende Spieldetails")
+            print(f"📊 {len(missing_ids)} Spiele brauchen noch Details")
+            should_fetch = self.data_loader.ask_user_update_choice("Fehlende Spieldetails")
             
             if should_fetch:
                 print(f"🔍 Lade Details für {len(missing_ids)} Spiele...")
