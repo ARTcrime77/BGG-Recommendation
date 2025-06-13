@@ -18,7 +18,8 @@ from config import (
     PLAY_COUNT_LOG_BASE,
     RECENCY_DECAY_MONTHS,
     MIN_PLAYS_FOR_CONSISTENCY,
-    RECENT_THRESHOLD_MONTHS
+    RECENT_THRESHOLD_MONTHS,
+    RATING_WEIGHTING
 )
 
 
@@ -300,14 +301,45 @@ class BGGMLEngine:
         
         return play_counts, recent_plays, play_dates
     
+    def _calculate_nonlinear_rating_weight(self, rating):
+        """Berechnet non-lineares Gewicht basierend auf Spielbewertung"""
+        rating_config = RATING_WEIGHTING
+        
+        if not rating_config['use_nonlinear']:
+            # Fallback zu linearer Gewichtung
+            return max(0, rating - rating_config['min_rating'])
+        
+        # Normalisiere Rating (0-10 Skala auf 0-1)
+        normalized_rating = (rating - rating_config['min_rating']) / (10.0 - rating_config['min_rating'])
+        normalized_rating = max(0, min(1, normalized_rating))  # Begrenze auf [0,1]
+        
+        # Exponentieller Gewichtungsterm
+        exponential_weight = np.power(normalized_rating, rating_config['exponent'])
+        
+        # Verstärkung für sehr hohe Bewertungen (über threshold)
+        if rating >= rating_config['threshold']:
+            threshold_bonus = (rating - rating_config['threshold']) * rating_config['amplification_factor']
+            exponential_weight += threshold_bonus
+        
+        # Sigmoid-ähnliche Transformation für sanftere Übergänge
+        sigmoid_factor = 2.0 / (1.0 + np.exp(-3.0 * normalized_rating)) - 1.0
+        
+        # Kombiniere exponentiellen und sigmoid Ansatz
+        final_weight = 0.7 * exponential_weight + 0.3 * sigmoid_factor
+        
+        # Skaliere zurück auf sinnvolle Werte (multipliziere mit der ursprünglichen Range)
+        scaled_weight = final_weight * (rating - rating_config['min_rating'])
+        
+        return max(0, scaled_weight)
+    
     def _calculate_advanced_weight(self, game, play_count, recent_plays, play_dates, game_details):
         """Berechnet erweiterte Gewichtung für ein Spiel"""
         weights = USER_PREFERENCE_WEIGHTS
         total_weight = 0
         
-        # 1. Basis-Bewertungsgewicht
-        if game['rating'] and game['rating'] > 5:
-            rating_weight = (game['rating'] - 5) * weights['rating_weight']
+        # 1. Erweiterte Bewertungsgewichtung (non-linear)
+        if game['rating'] and game['rating'] > RATING_WEIGHTING['min_rating']:
+            rating_weight = self._calculate_nonlinear_rating_weight(game['rating']) * weights['rating_weight']
             total_weight += rating_weight
         
         # 2. Spielhäufigkeits-Gewicht

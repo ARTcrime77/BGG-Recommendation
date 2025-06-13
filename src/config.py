@@ -41,6 +41,15 @@ USER_PREFERENCE_WEIGHTS = {
     'time_preference_weight': 0.7   # Spielzeit-Präferenz
 }
 
+# Non-linear Rating Weighting Parameters
+RATING_WEIGHTING = {
+    'use_nonlinear': True,          # Aktiviere non-lineare Gewichtung
+    'exponent': 2.5,                # Potenz für exponentielles Wachstum
+    'threshold': 6.0,               # Schwellwert für verstärkte Gewichtung
+    'amplification_factor': 1.5,    # Verstärkungsfaktor für hohe Bewertungen
+    'min_rating': 5.0               # Mindestbewertung für Gewichtung
+}
+
 # Zeitbasierte Gewichtung
 RECENCY_DECAY_MONTHS = 12    # Nach wie vielen Monaten Gewichtung um 50% reduziert
 MIN_PLAYS_FOR_CONSISTENCY = 3  # Mindest-Spiele für Konsistenz-Berechnung
