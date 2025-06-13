@@ -26,6 +26,7 @@ MAX_SCRAPING_PAGES = 10  # Maximal 10 Seiten (1000 Spiele) scrapen
 MIN_FEATURE_FREQUENCY = 2  # Mindestanzahl Spiele für Features (Autoren, etc.)
 MAX_NEIGHBORS = 20  # Maximale Nachbarn für k-NN
 SIMILARITY_METRIC = 'cosine'
+EXCLUDE_BGG_RATING_FROM_FEATURES = True  # BGG-Rating aus ML-Features entfernen (empfohlen)
 
 # Gewichtungsparameter
 RATING_WEIGHT_MULTIPLIER = 2  # Faktor für Bewertungen über 5

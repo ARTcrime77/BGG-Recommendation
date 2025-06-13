@@ -19,7 +19,8 @@ from config import (
     RECENCY_DECAY_MONTHS,
     MIN_PLAYS_FOR_CONSISTENCY,
     RECENT_THRESHOLD_MONTHS,
-    RATING_WEIGHTING
+    RATING_WEIGHTING,
+    EXCLUDE_BGG_RATING_FROM_FEATURES
 )
 
 
@@ -102,15 +103,22 @@ class BGGMLEngine:
             # Numerische Features
             game_age = current_year - game['year_published']
             
-            feature_vector.extend([
-                game['avg_rating'],
+            # Basis-Features (ohne BGG-Rating)
+            numeric_features = [
                 game['complexity'],
                 game['min_players'],
                 game['max_players'],
                 np.log(game['playing_time'] + 1),  # Log-transform für Spielzeit
                 game_age,  # Alter des Spiels
                 min(game_age, 25)  # Gekapptes Alter für sehr alte Spiele
-            ])
+            ]
+            
+            # BGG-Rating optional hinzufügen
+            # Hinweis: BGG-Rating bleibt als Qualitätsfilter aktiv, wird aber nicht für ML-Ähnlichkeit verwendet
+            if not EXCLUDE_BGG_RATING_FROM_FEATURES:
+                numeric_features.insert(0, game['avg_rating'])
+            
+            feature_vector.extend(numeric_features)
             
             # One-Hot Encoding für kategorische Features
             categorical_features = self._encode_categorical_features(
@@ -199,7 +207,7 @@ class BGGMLEngine:
         print(f"   {self.feature_matrix.shape[0]} Spiele × {self.feature_matrix.shape[1]} Features")
         
         # Feature-Aufschlüsselung
-        numeric_features = 7
+        numeric_features = 6 if EXCLUDE_BGG_RATING_FROM_FEATURES else 7
         category_features = len(self.feature_info['categories'])
         mechanic_features = len(self.feature_info['mechanics'])
         designer_features = len(self.feature_info['designers'])
@@ -569,15 +577,22 @@ class BGGMLEngine:
         user_game_age = current_year - user_prefs['year_published']
         
         user_vector = []
-        user_vector.extend([
-            user_prefs['avg_rating'],
+        
+        # Basis-Features (ohne BGG-Rating)
+        numeric_features = [
             user_prefs['complexity'],
             user_prefs['min_players'],
             user_prefs['max_players'],
             np.log(user_prefs['playing_time'] + 1),
             user_game_age,
             min(user_game_age, 25)
-        ])
+        ]
+        
+        # BGG-Rating optional hinzufügen
+        if not EXCLUDE_BGG_RATING_FROM_FEATURES:
+            numeric_features.insert(0, user_prefs['avg_rating'])
+        
+        user_vector.extend(numeric_features)
         
         # Kategorische Features
         for category in self.feature_info['categories']:
