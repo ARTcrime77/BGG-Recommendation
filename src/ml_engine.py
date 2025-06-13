@@ -14,7 +14,7 @@ from config import (
     SIMILARITY_METRIC,
     DEFAULT_NUM_RECOMMENDATIONS,
     DEBUG_SHOW_SIMILARITY_DETAILS,
-    USER_PREFERENCE_WEIGHTS,
+    WEIGHTS,
     PLAY_COUNT_LOG_BASE,
     RECENCY_DECAY_MONTHS,
     MIN_PLAYS_FOR_CONSISTENCY,
@@ -120,8 +120,8 @@ class BGGMLEngine:
             
             feature_vector.extend(numeric_features)
             
-            # One-Hot Encoding für kategorische Features
-            categorical_features = self._encode_categorical_features(
+            # One-Hot Encoding für kategorische Features mit Gewichtung
+            categorical_features = self._encode_categorical_features_weighted(
                 game, self.feature_info
             )
             feature_vector.extend(categorical_features)
@@ -201,6 +201,37 @@ class BGGMLEngine:
         
         return encoding
     
+    def _encode_categorical_features_weighted(self, game, feature_info):
+        """Erstellt gewichtetes One-Hot Encoding für kategorische Features"""
+        encoding = []
+        
+        # Kategorien (gewichtet)
+        for category in feature_info['categories']:
+            value = WEIGHTS['features']['category_weight'] if category in game['categories'] else 0
+            encoding.append(value)
+        
+        # Mechaniken (gewichtet)
+        for mechanic in feature_info['mechanics']:
+            value = WEIGHTS['features']['mechanic_weight'] if mechanic in game['mechanics'] else 0
+            encoding.append(value)
+        
+        # Designer (gewichtet)
+        for designer in feature_info['designers']:
+            value = WEIGHTS['features']['designer_weight'] if designer in game['designers'] else 0
+            encoding.append(value)
+        
+        # Artists (gewichtet)
+        for artist in feature_info['artists']:
+            value = WEIGHTS['features']['artist_weight'] if artist in game['artists'] else 0
+            encoding.append(value)
+        
+        # Publishers (gewichtet)
+        for publisher in feature_info['publishers']:
+            value = WEIGHTS['features']['publisher_weight'] if publisher in game['publishers'] else 0
+            encoding.append(value)
+        
+        return encoding
+    
     def _print_feature_summary(self):
         """Gibt eine Zusammenfassung der Feature-Matrix aus"""
         print(f"✓ Feature-Matrix erstellt: {self.feature_matrix.shape}")
@@ -215,9 +246,11 @@ class BGGMLEngine:
         publisher_features = len(self.feature_info['publishers'])
         
         breakdown = f"   Aufschlüsselung: {numeric_features} numerisch + "
-        breakdown += f"{category_features} Kategorien + {mechanic_features} Mechaniken + "
-        breakdown += f"{designer_features} Autoren + {artist_features} Illustratoren + "
-        breakdown += f"{publisher_features} Verlage"
+        breakdown += f"{category_features} Kategorien (×{WEIGHTS['features']['category_weight']}) + "
+        breakdown += f"{mechanic_features} Mechaniken (×{WEIGHTS['features']['mechanic_weight']}) + "
+        breakdown += f"{designer_features} Autoren (×{WEIGHTS['features']['designer_weight']}) + "
+        breakdown += f"{artist_features} Illustratoren (×{WEIGHTS['features']['artist_weight']}) + "
+        breakdown += f"{publisher_features} Verlage (×{WEIGHTS['features']['publisher_weight']})"
         print(breakdown)
     
     def train_model(self):
@@ -342,7 +375,7 @@ class BGGMLEngine:
     
     def _calculate_advanced_weight(self, game, play_count, recent_plays, play_dates, game_details):
         """Berechnet erweiterte Gewichtung für ein Spiel"""
-        weights = USER_PREFERENCE_WEIGHTS
+        weights = WEIGHTS['user_preferences']
         total_weight = 0
         
         # 1. Erweiterte Bewertungsgewichtung (non-linear)
@@ -594,21 +627,26 @@ class BGGMLEngine:
         
         user_vector.extend(numeric_features)
         
-        # Kategorische Features
+        # Kategorische Features (gewichtet)
         for category in self.feature_info['categories']:
-            user_vector.append(user_prefs['categories'].get(category, 0))
+            value = user_prefs['categories'].get(category, 0) * WEIGHTS['features']['category_weight']
+            user_vector.append(value)
         
         for mechanic in self.feature_info['mechanics']:
-            user_vector.append(user_prefs['mechanics'].get(mechanic, 0))
+            value = user_prefs['mechanics'].get(mechanic, 0) * WEIGHTS['features']['mechanic_weight']
+            user_vector.append(value)
         
         for designer in self.feature_info['designers']:
-            user_vector.append(user_prefs['designers'].get(designer, 0))
+            value = user_prefs['designers'].get(designer, 0) * WEIGHTS['features']['designer_weight']
+            user_vector.append(value)
         
         for artist in self.feature_info['artists']:
-            user_vector.append(user_prefs['artists'].get(artist, 0))
+            value = user_prefs['artists'].get(artist, 0) * WEIGHTS['features']['artist_weight']
+            user_vector.append(value)
         
         for publisher in self.feature_info['publishers']:
-            user_vector.append(user_prefs['publishers'].get(publisher, 0))
+            value = user_prefs['publishers'].get(publisher, 0) * WEIGHTS['features']['publisher_weight']
+            user_vector.append(value)
         
         user_vector = np.array(user_vector).reshape(1, -1)
         return self.scaler.transform(user_vector)

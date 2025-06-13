@@ -32,14 +32,26 @@ EXCLUDE_BGG_RATING_FROM_FEATURES = True  # BGG-Rating aus ML-Features entfernen 
 RATING_WEIGHT_MULTIPLIER = 2  # Faktor für Bewertungen über 5
 PLAY_COUNT_LOG_BASE = 1  # Basis für Logarithmus der Spielanzahl
 
-# Erweiterte Gewichtungsparameter (NEU)
-USER_PREFERENCE_WEIGHTS = {
-    'rating_weight': 3.0,           # Bewertungen stärker gewichten
-    'play_count_weight': 0.5,       # Spielhäufigkeit
-    'recency_weight': 1.5,          # Neuere Bewertungen bevorzugen
-    'consistency_weight': 0.5,      # Konsistenz der Bewertungen
-    'complexity_match_weight': 1.2, # Komplexitäts-Präferenz
-    'time_preference_weight': 0.7   # Spielzeit-Präferenz
+# Vereinigte Gewichtungsparameter
+WEIGHTS = {
+    # Nutzer-Präferenz-Gewichtungen (für Nutzer-Profil-Erstellung)
+    'user_preferences': {
+        'rating_weight': 3.0,           # Bewertungen stärker gewichten
+        'play_count_weight': 0.5,       # Spielhäufigkeit
+        'recency_weight': 1.5,          # Neuere Bewertungen bevorzugen
+        'consistency_weight': 0.5,      # Konsistenz der Bewertungen
+        'complexity_match_weight': 1.2, # Komplexitäts-Präferenz
+        'time_preference_weight': 0.7   # Spielzeit-Präferenz
+    },
+    
+    # Feature-Gewichtungen (für ML-Ähnlichkeits-Matching)
+    'features': {
+        'designer_weight': 1.2,     # Gewichtung für Designer/Autoren-Features
+        'artist_weight': 0.8,       # Gewichtung für Illustratoren-Features
+        'publisher_weight': 0.6,    # Gewichtung für Verlags-Features
+        'category_weight': 1.0,     # Gewichtung für Kategorie-Features
+        'mechanic_weight': 1.5      # Gewichtung für Mechanik-Features
+    }
 }
 
 # Non-linear Rating Weighting Parameters
@@ -48,7 +60,7 @@ RATING_WEIGHTING = {
     'exponent': 2.5,                # Potenz für exponentielles Wachstum
     'threshold': 6.0,               # Schwellwert für verstärkte Gewichtung
     'amplification_factor': 1.5,    # Verstärkungsfaktor für hohe Bewertungen
-    'min_rating': 5.0               # Mindestbewertung für Gewichtung
+    'min_rating': 6.0               # Mindestbewertung für Gewichtung
 }
 
 # Zeitbasierte Gewichtung
