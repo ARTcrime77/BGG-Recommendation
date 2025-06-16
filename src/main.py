@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Hauptklasse für das BGG ML-Empfehlungssystem
 """

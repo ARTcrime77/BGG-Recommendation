@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Machine Learning Engine für das BGG Empfehlungssystem
 """
@@ -33,10 +34,32 @@ class BGGMLEngine:
         self.feature_info = {}
         self.feature_names = []
     
-    def create_feature_matrix(self, games_df):
-        """Erstellt Feature-Matrix für Machine Learning"""
+    def create_feature_matrix(self, games_df, force_recompute=False):
+        """Erstellt Feature-Matrix für Machine Learning mit Caching"""
         if games_df is None or len(games_df) == 0:
             return False
+        
+        # Generiere Cache-Key basierend auf Spieldaten und Parametern
+        games_hash = cache_manager._generate_cache_key(
+            str(len(games_df)),
+            str(games_df['id'].sum()),  # Einfacher Checksum der Spiel-IDs
+            MIN_FEATURE_FREQUENCY,
+            str(WEIGHTS['features'])
+        )
+        feature_cache_key = f"features_{games_hash}"
+        
+        # Versuche Features aus Cache zu laden
+        if not force_recompute:
+            cached_features = cache_manager.load_feature_cache(feature_cache_key)
+            
+            if cached_features:
+                self.feature_matrix = cached_features['features']
+                self.feature_info = cached_features['feature_info']
+                self.feature_names = cached_features['metadata'].get('feature_names', [])
+                
+                print(f"📁 Feature-Matrix aus Cache geladen")
+                print(f"   {self.feature_matrix.shape[0]} Spiele × {self.feature_matrix.shape[1]} Features")
+                return True
         
         print("🔧 Erstelle Feature-Matrix...")
         
@@ -164,6 +187,19 @@ class BGGMLEngine:
         
         # Normalisierung
         self.feature_matrix = self.scaler.fit_transform(self.feature_matrix)
+        
+        # Speichere berechnete Features im Cache
+        cache_manager.save_feature_cache(
+            feature_cache_key,
+            self.feature_matrix,
+            self.feature_info,
+            {
+                'feature_names': self.feature_names,
+                'games_count': len(games_df),
+                'feature_frequency_threshold': MIN_FEATURE_FREQUENCY,
+                'feature_weights': WEIGHTS['features']
+            }
+        )
         
         self._print_feature_summary()
         

@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Datenlade-Funktionen für das BGG ML-Empfehlungssystem
 Verwendet CacheManager für einheitliche Cache-Verwaltung
