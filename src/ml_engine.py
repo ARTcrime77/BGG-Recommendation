@@ -30,6 +30,7 @@ class BGGMLEngine:
         self.ml_model = None
         self.scaler = StandardScaler()
         self.feature_info = {}
+        self.feature_names = []
     
     def create_feature_matrix(self, games_df):
         """Erstellt Feature-Matrix für Machine Learning"""
@@ -93,6 +94,29 @@ class BGGMLEngine:
         publishers_info += f"(von {len(all_publishers)} total)"
         print(publishers_info)
         
+        # Feature-Namen erstellen
+        self.feature_names = []
+        
+        # Numerische Feature-Namen
+        if not EXCLUDE_BGG_RATING_FROM_FEATURES:
+            self.feature_names.append('avg_rating')
+        self.feature_names.extend([
+            'complexity', 'min_players', 'max_players', 
+            'log_playing_time', 'game_age', 'capped_game_age'
+        ])
+        
+        # Kategorische Feature-Namen
+        for category in self.feature_info['categories']:
+            self.feature_names.append(f'category_{category}')
+        for mechanic in self.feature_info['mechanics']:
+            self.feature_names.append(f'mechanic_{mechanic}')
+        for designer in self.feature_info['designers']:
+            self.feature_names.append(f'designer_{designer}')
+        for artist in self.feature_info['artists']:
+            self.feature_names.append(f'artist_{artist}')
+        for publisher in self.feature_info['publishers']:
+            self.feature_names.append(f'publisher_{publisher}')
+
         # Feature-Matrix erstellen
         features = []
         current_year = 2025

@@ -30,6 +30,11 @@ MAX_NEIGHBORS = 20  # Maximale Nachbarn für k-NN
 SIMILARITY_METRIC = 'cosine'
 EXCLUDE_BGG_RATING_FROM_FEATURES = True  # BGG-Rating aus ML-Features entfernen (empfohlen)
 
+# Visualisierungs-Einstellungen
+ENABLE_VISUALIZATIONS = False  # Visualisierungen aktivieren/deaktivieren
+SAVE_PLOTS_AS_FILES = False    # Plots als PNG-Dateien speichern
+SHOW_PLOTS_GUI = False         # Plots in GUI anzeigen (falls Backend verfügbar)
+
 # Gewichtungsparameter
 RATING_WEIGHT_MULTIPLIER = 2  # Faktor für Bewertungen über 5
 PLAY_COUNT_LOG_BASE = 1  # Basis für Logarithmus der Spielanzahl

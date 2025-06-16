@@ -4,17 +4,36 @@ Hauptklasse für das BGG ML-Empfehlungssystem
 
 import pandas as pd
 import os
+import json
+import sys
 from datetime import datetime
+import matplotlib
+# Backend für macOS - versuche verschiedene Optionen
+try:
+    matplotlib.use('Qt5Agg')  # Versuche Qt5 zuerst
+except ImportError:
+    try:
+        matplotlib.use('MacOSX')  # Versuche macOS native Backend
+    except ImportError:
+        try:
+            matplotlib.use('Agg')  # Fallback: Dateien ohne GUI
+            print("⚠️ GUI-Backend nicht verfügbar - Plots werden als Dateien gespeichert")
+        except ImportError:
+            print("❌ Kein matplotlib Backend verfügbar")
 
 from config import (
     DEBUG_SHOW_SIMILARITY_DETAILS,
     DEFAULT_NUM_RECOMMENDATIONS,
     TOP_GAMES_FILE,
     GAME_DETAILS_FILE,
-    TARGET_TOP_GAMES
+    TARGET_TOP_GAMES,
+    ENABLE_VISUALIZATIONS,
+    SAVE_PLOTS_AS_FILES,
+    SHOW_PLOTS_GUI
 )
 from data_loader import BGGDataLoader
 from ml_engine import BGGMLEngine
+from visualizer import BGGVisualizer
 
 
 class BGGRecommender:
@@ -22,6 +41,7 @@ class BGGRecommender:
         self.username = username
         self.data_loader = BGGDataLoader()
         self.ml_engine = BGGMLEngine()
+        self.visualizer = BGGVisualizer()
         
         # Datenstrukturen
         self.collection_data = None
@@ -245,20 +265,224 @@ class BGGRecommender:
         # 5. Ergebnisse anzeigen
         self.display_recommendations(recommendations)
         
-        # 6. Cache-Info
+        # 6. Empfehlungen speichern
+        self.save_recommendations(recommendations)
+        
+        # 7. Visualisierungen erstellen (falls aktiviert)
+        if ENABLE_VISUALIZATIONS:
+            self.create_visualizations(recommendations)
+        else:
+            print("📊 Visualisierungen deaktiviert (ENABLE_VISUALIZATIONS = False)")
+        
+        # 8. Cache-Info
         self.show_cache_info()
+    
+    def create_visualizations(self, recommendations):
+        """Erstellt alle Visualisierungen der Empfehlungsergebnisse"""
+        if not recommendations:
+            print("⚠️ Keine Empfehlungen für Visualisierung vorhanden.")
+            return
+        
+        print("\n📊 Erstelle Visualisierungen...")
+        
+        try:
+            # Konvertiere Empfehlungen zu DataFrame
+            recommendations_df = pd.DataFrame(recommendations)
+            
+            # Konvertiere Top-Games-Daten für Visualisierung
+            games_data = self.top_games_data.copy()
+            games_data['rating'] = games_data['avg_rating']  # Rename für Visualizer
+            
+            # Hole Feature-Matrix und Feature-Namen vom ML-Engine
+            feature_matrix = self.ml_engine.feature_matrix
+            feature_names = self.ml_engine.feature_names
+            
+            # Konfiguriere Speicherpfade basierend auf Einstellungen
+            save_paths = {}
+            if SAVE_PLOTS_AS_FILES:
+                plots_dir = "bgg_cache/plots"
+                os.makedirs(plots_dir, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                save_paths = {
+                    'similarity': os.path.join(plots_dir, f"similarity_{timestamp}.png"),
+                    'ratings': os.path.join(plots_dir, f"ratings_{timestamp}.png"),
+                    'features': os.path.join(plots_dir, f"features_{timestamp}.png")
+                }
+            
+            # Konfiguriere GUI-Anzeige
+            original_show_gui = SHOW_PLOTS_GUI
+            
+            # Einzelne Plots erstellen
+            print("📊 Erstelle Ähnlichkeitsdiagramm...")
+            self.visualizer.plot_recommendation_similarity(
+                recommendations_df, 
+                self.collection_data, 
+                save_paths.get('similarity'), 
+                show_gui=original_show_gui
+            )
+            
+            print("📊 Erstelle Bewertungsverteilungsdiagramm...")
+            self.visualizer.plot_rating_distribution(
+                games_data, 
+                self.collection_data, 
+                save_paths.get('ratings'),
+                show_gui=original_show_gui
+            )
+            
+            print("📊 Erstelle Feature-Analyse...")
+            self.visualizer.plot_feature_analysis(
+                feature_matrix, 
+                feature_names, 
+                games_data, 
+                save_paths.get('features'),
+                show_gui=original_show_gui
+            )
+            
+            if SAVE_PLOTS_AS_FILES:
+                print(f"💾 Plots gespeichert in: {plots_dir}")
+            if not original_show_gui:
+                print("📊 GUI-Anzeige deaktiviert (SHOW_PLOTS_GUI = False)")
+            
+            print("✅ Visualisierungen erfolgreich erstellt!")
+            
+        except Exception as e:
+            print(f"⚠️ Fehler beim Erstellen der Visualisierungen: {e}")
+            print("💡 Stellen Sie sicher, dass matplotlib und seaborn installiert sind:")
+            print("   pip install matplotlib seaborn")
+    
+    def save_recommendations(self, recommendations):
+        """Speichert Empfehlungen in JSON-Datei für spätere Visualisierung"""
+        if not recommendations:
+            return
+        
+        # Erstelle bgg_cache Ordner falls nicht vorhanden
+        cache_dir = "bgg_cache"
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        recommendations_file = os.path.join(cache_dir, "recommendations.json")
+        
+        # Konvertiere NumPy-Typen zu Python-Typen für JSON-Serialisierung
+        def convert_numpy_types(obj):
+            """Konvertiert NumPy-Datentypen zu Python-Standard-Datentypen"""
+            import numpy as np
+            
+            if isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {key: convert_numpy_types(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_numpy_types(item) for item in obj]
+            else:
+                return obj
+        
+        # Konvertiere Empfehlungen
+        converted_recommendations = convert_numpy_types(recommendations)
+        
+        # Zusätzliche Metadaten speichern
+        save_data = {
+            "timestamp": datetime.now().isoformat(),
+            "username": self.username,
+            "num_recommendations": len(recommendations),
+            "recommendations": converted_recommendations,
+            "games_data_summary": {
+                "total_games": len(self.top_games_data) if self.top_games_data is not None else 0,
+                "feature_count": len(self.ml_engine.feature_names) if hasattr(self.ml_engine, 'feature_names') else 0
+            }
+        }
+        
+        try:
+            with open(recommendations_file, 'w', encoding='utf-8') as f:
+                json.dump(save_data, f, ensure_ascii=False, indent=2)
+            print(f"💾 Empfehlungen gespeichert: {recommendations_file}")
+        except Exception as e:
+            print(f"⚠️ Fehler beim Speichern der Empfehlungen: {e}")
+    
+    def load_recommendations(self):
+        """Lädt gespeicherte Empfehlungen aus JSON-Datei"""
+        recommendations_file = os.path.join("bgg_cache", "recommendations.json")
+        
+        if not os.path.exists(recommendations_file):
+            print(f"❌ Keine gespeicherten Empfehlungen gefunden: {recommendations_file}")
+            return None
+        
+        try:
+            with open(recommendations_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Zeige Info über geladene Daten
+            timestamp = datetime.fromisoformat(data['timestamp'])
+            print(f"📁 Lade gespeicherte Empfehlungen vom {timestamp.strftime('%d.%m.%Y %H:%M')}")
+            print(f"   Nutzer: {data['username']}")
+            print(f"   Anzahl Empfehlungen: {data['num_recommendations']}")
+            
+            return data['recommendations']
+            
+        except Exception as e:
+            print(f"⚠️ Fehler beim Laden der Empfehlungen: {e}")
+            return None
+    
+    def visualize_saved_recommendations(self):
+        """Erstellt Visualisierungen für gespeicherte Empfehlungen"""
+        print("📊 Lade gespeicherte Empfehlungen für Visualisierung...")
+        
+        recommendations = self.load_recommendations()
+        if not recommendations:
+            return False
+        
+        # Prüfe ob wir die nötigen Daten haben
+        if not hasattr(self, 'top_games_data') or self.top_games_data is None:
+            print("⚠️ Top-Games-Daten nicht verfügbar. Lade Basisdaten...")
+            if not self.load_top_games_data():
+                print("❌ Konnte Top-Games-Daten nicht laden")
+                return False
+        
+        if not hasattr(self.ml_engine, 'feature_names') or not self.ml_engine.feature_names:
+            print("⚠️ Feature-Daten nicht verfügbar. Trainiere ML-Modell...")
+            if not self.train_ml_model():
+                print("❌ Konnte ML-Modell nicht trainieren")
+                return False
+        
+        # Erstelle Visualisierungen
+        self.create_visualizations(recommendations)
+        return True
 
 
 def main():
     """Hauptfunktion"""
     print("🎲 BGG ML-Empfehlungssystem")
-    print("Benötigt: pip install scikit-learn beautifulsoup4 pandas numpy")
+    print("Benötigt: pip install scikit-learn beautifulsoup4 pandas numpy matplotlib seaborn")
     print("=" * 50)
     
+    # Kommandozeilen-Argumente prüfen
+    if len(sys.argv) > 1 and sys.argv[1] == "--visualize-only":
+        if not ENABLE_VISUALIZATIONS:
+            print("❌ Visualisierungen sind deaktiviert (ENABLE_VISUALIZATIONS = False)")
+            print("💡 Aktivieren Sie Visualisierungen in config.py")
+            return
+            
+        print("📊 Nur-Visualisierung-Modus")
+        username = "Artcrime77"  # Hier können Sie den Nutzernamen ändern
+        recommender = BGGRecommender(username)
+        
+        if recommender.visualize_saved_recommendations():
+            print("✅ Visualisierungen erfolgreich erstellt!")
+        else:
+            print("❌ Konnte Visualisierungen nicht erstellen.")
+            print("💡 Führen Sie zuerst eine vollständige Analyse durch:")
+            print("   python src/main.py")
+        return
+    
+    # Standard-Modus: Vollständige Analyse
     username = "Artcrime77"  # Hier können Sie den Nutzernamen ändern
     
     recommender = BGGRecommender(username)
     recommender.run_analysis()
+    
+    print("\n💡 Tipp: Verwenden Sie 'python src/main.py --visualize-only' um nur die Visualisierungen anzuzeigen.")
 
 
 if __name__ == "__main__":
