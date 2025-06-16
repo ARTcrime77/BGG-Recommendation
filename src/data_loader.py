@@ -16,6 +16,8 @@ from config import (
     CACHE_DIR,
     TOP_GAMES_FILE,
     GAME_DETAILS_FILE,
+    USER_COLLECTION_FILE,
+    USER_PLAYS_FILE,
     CACHE_MAX_AGE_DAYS,
     BGG_API_BASE_URL,
     BGG_BROWSE_URL,
@@ -372,10 +374,35 @@ class BGGDataLoader:
         return additional_games
     
     def fetch_user_collection(self, username):
-        """Lädt die Brettspielsammlung des Nutzers"""
+        """Lädt die Brettspielsammlung des Nutzers mit Caching"""
+        cache_file = USER_COLLECTION_FILE.replace('.json', f'_{username}.json')
+        cache_exists = os.path.exists(cache_file)
+        should_update = self.should_update_cache(cache_file)
+        
+        if cache_exists and not should_update:
+            print(f"📁 Sammlung für {username} im Cache gefunden (weniger als {CACHE_MAX_AGE_DAYS} Tage alt)")
+            update_choice = self.ask_user_update_choice("Neue Sammlung")
+        elif cache_exists and should_update:
+            print(f"📁 Sammlung für {username} im Cache gefunden (älter als {CACHE_MAX_AGE_DAYS} Tage)")
+            update_choice = self.ask_user_update_choice("Aktualisierte Sammlung")
+        else:
+            print(f"📁 Keine Sammlung für {username} im Cache gefunden")
+            update_choice = True
+        
+        if update_choice:
+            games = self._fetch_user_collection_from_api(username)
+            if games is not None:
+                self._save_user_collection_cache(username, games)
+            return games
+        else:
+            print(f"📖 Lade Sammlung für {username} aus lokalem Cache...")
+            return self._load_user_collection_cache(username)
+    
+    def _fetch_user_collection_from_api(self, username):
+        """Lädt die Brettspielsammlung des Nutzers von der BGG API"""
         url = f"{BGG_API_BASE_URL}/collection?username={username}&stats=1"
         
-        print(f"Lade Sammlung für {username}...")
+        print(f"🌐 Lade Sammlung für {username} von BGG...")
         response = requests.get(url)
         
         if response.status_code == 200:
@@ -403,14 +430,73 @@ class BGGDataLoader:
             print(f"✓ {len(games)} Spiele in der Sammlung gefunden")
             return games
         else:
-            print(f"Fehler beim Laden der Sammlung: {response.status_code}")
+            print(f"❌ Fehler beim Laden der Sammlung: {response.status_code}")
             return None
     
+    def _save_user_collection_cache(self, username, games):
+        """Speichert Nutzersammlung im Cache"""
+        cache_file = USER_COLLECTION_FILE.replace('.json', f'_{username}.json')
+        cache_data = {
+            'timestamp': datetime.now().isoformat(),
+            'username': username,
+            'games': games
+        }
+        
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"💾 Sammlung für {username} im Cache gespeichert")
+    
+    def _load_user_collection_cache(self, username):
+        """Lädt Nutzersammlung aus dem Cache"""
+        cache_file = USER_COLLECTION_FILE.replace('.json', f'_{username}.json')
+        
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                    games = cache_data.get('games', [])
+                    cache_time = cache_data.get('timestamp', 'Unbekannt')
+                    
+                    print(f"✓ {len(games)} Spiele aus Cache geladen (erstellt: {cache_time})")
+                    return games
+            except Exception as e:
+                print(f"❌ Fehler beim Laden der Sammlung aus Cache: {e}")
+                return self._fetch_user_collection_from_api(username)
+        else:
+            print(f"⚠️  Kein Cache für {username} gefunden")
+            return self._fetch_user_collection_from_api(username)
+    
     def fetch_user_plays(self, username, pages=10):
-        """Lädt die Spielstatistiken des Nutzers"""
+        """Lädt die Spielstatistiken des Nutzers mit Caching"""
+        cache_file = USER_PLAYS_FILE.replace('.json', f'_{username}.json')
+        cache_exists = os.path.exists(cache_file)
+        should_update = self.should_update_cache(cache_file)
+        
+        if cache_exists and not should_update:
+            print(f"📁 Spielstatistiken für {username} im Cache gefunden (weniger als {CACHE_MAX_AGE_DAYS} Tage alt)")
+            update_choice = self.ask_user_update_choice("Neue Spielstatistiken")
+        elif cache_exists and should_update:
+            print(f"📁 Spielstatistiken für {username} im Cache gefunden (älter als {CACHE_MAX_AGE_DAYS} Tage)")
+            update_choice = self.ask_user_update_choice("Aktualisierte Spielstatistiken")
+        else:
+            print(f"📁 Keine Spielstatistiken für {username} im Cache gefunden")
+            update_choice = True
+        
+        if update_choice:
+            plays = self._fetch_user_plays_from_api(username, pages)
+            if plays is not None:
+                self._save_user_plays_cache(username, plays)
+            return plays
+        else:
+            print(f"📖 Lade Spielstatistiken für {username} aus lokalem Cache...")
+            return self._load_user_plays_cache(username)
+    
+    def _fetch_user_plays_from_api(self, username, pages=10):
+        """Lädt die Spielstatistiken des Nutzers von der BGG API"""
         all_plays = []
         
-        print(f"Lade Spielstatistiken...")
+        print(f"🌐 Lade Spielstatistiken für {username} von BGG...")
         
         for page in range(1, pages + 1):
             url = f"{BGG_API_BASE_URL}/plays?username={username}&page={page}"
@@ -442,8 +528,42 @@ class BGGDataLoader:
             print(f"✓ {len(all_plays)} Spieleinträge gefunden")
             return all_plays
         else:
-            print("Keine Spielstatistiken gefunden")
+            print("⚠️  Keine Spielstatistiken gefunden")
             return None
+    
+    def _save_user_plays_cache(self, username, plays):
+        """Speichert Nutzerspielstatistiken im Cache"""
+        cache_file = USER_PLAYS_FILE.replace('.json', f'_{username}.json')
+        cache_data = {
+            'timestamp': datetime.now().isoformat(),
+            'username': username,
+            'plays': plays
+        }
+        
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"💾 Spielstatistiken für {username} im Cache gespeichert")
+    
+    def _load_user_plays_cache(self, username):
+        """Lädt Nutzerspielstatistiken aus dem Cache"""
+        cache_file = USER_PLAYS_FILE.replace('.json', f'_{username}.json')
+        
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                    plays = cache_data.get('plays', [])
+                    cache_time = cache_data.get('timestamp', 'Unbekannt')
+                    
+                    print(f"✓ {len(plays)} Spieleinträge aus Cache geladen (erstellt: {cache_time})")
+                    return plays
+            except Exception as e:
+                print(f"❌ Fehler beim Laden der Spielstatistiken aus Cache: {e}")
+                return self._fetch_user_plays_from_api(username)
+        else:
+            print(f"⚠️  Kein Cache für Spielstatistiken von {username} gefunden")
+            return self._fetch_user_plays_from_api(username)
     
     def fetch_game_details(self, game_ids):
         """Lädt detaillierte Informationen für Spiele"""

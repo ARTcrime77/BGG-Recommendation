@@ -8,6 +8,8 @@ import os
 CACHE_DIR = "bgg_cache"
 TOP_GAMES_FILE = os.path.join(CACHE_DIR, "top_games.json")
 GAME_DETAILS_FILE = os.path.join(CACHE_DIR, "game_details.json")
+USER_COLLECTION_FILE = os.path.join(CACHE_DIR, "user_collection.json")
+USER_PLAYS_FILE = os.path.join(CACHE_DIR, "user_plays.json")
 CACHE_MAX_AGE_DAYS = 7
 
 # BGG API-Einstellungen
@@ -27,6 +29,11 @@ MIN_FEATURE_FREQUENCY = 2  # Mindestanzahl Spiele für Features (Autoren, etc.)
 MAX_NEIGHBORS = 20  # Maximale Nachbarn für k-NN
 SIMILARITY_METRIC = 'cosine'
 EXCLUDE_BGG_RATING_FROM_FEATURES = True  # BGG-Rating aus ML-Features entfernen (empfohlen)
+
+# Visualisierungs-Einstellungen
+ENABLE_VISUALIZATIONS = False  # Visualisierungen aktivieren/deaktivieren
+SAVE_PLOTS_AS_FILES = False    # Plots als PNG-Dateien speichern
+SHOW_PLOTS_GUI = False         # Plots in GUI anzeigen (falls Backend verfügbar)
 
 # Gewichtungsparameter
 RATING_WEIGHT_MULTIPLIER = 2  # Faktor für Bewertungen über 5
