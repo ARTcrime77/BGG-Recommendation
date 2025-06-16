@@ -86,7 +86,12 @@ class BGGDataLoader:
                     'User-Agent': USER_AGENT
                 }
                 
-                response = requests.get(BGG_BROWSE_URL+str(page), params=params, headers=headers)
+                try:
+                    response = requests.get(BGG_BROWSE_URL+str(page), params=params, headers=headers, timeout=15)
+                except (requests.ConnectionError, requests.Timeout) as e:
+                    print(f"❌ Netzwerkfehler bei Web-Scraping Seite {page}: {e}")
+                    print("🔄 Verwende Fallback-Daten...")
+                    return self.get_fallback_top_games()
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.content, 'html.parser')
@@ -389,7 +394,13 @@ class BGGDataLoader:
         url = f"{BGG_API_BASE_URL}/collection?username={username}&stats=1"
         
         print(f"🌐 Lade Sammlung für {username} von BGG...")
-        response = requests.get(url)
+        
+        try:
+            response = requests.get(url, timeout=10)
+        except (requests.ConnectionError, requests.Timeout) as e:
+            print(f"❌ Netzwerkfehler: {e}")
+            print("💡 Verwenden Sie den Offline-Modus: python src/offline_recommender.py")
+            return None
         
         if response.status_code == 200:
             root = ET.fromstring(response.content)
@@ -463,7 +474,13 @@ class BGGDataLoader:
         
         for page in range(1, pages + 1):
             url = f"{BGG_API_BASE_URL}/plays?username={username}&page={page}"
-            response = requests.get(url)
+            
+            try:
+                response = requests.get(url, timeout=10)
+            except (requests.ConnectionError, requests.Timeout) as e:
+                print(f"❌ Netzwerkfehler bei Seite {page}: {e}")
+                print("💡 Verwenden Sie den Offline-Modus: python src/offline_recommender.py")
+                break
             
             if response.status_code == 200:
                 root = ET.fromstring(response.content)
@@ -510,7 +527,13 @@ class BGGDataLoader:
             ids_str = ','.join(map(str, batch))
             
             url = f"{BGG_API_BASE_URL}/thing?id={ids_str}&stats=1"
-            response = requests.get(url)
+            
+            try:
+                response = requests.get(url, timeout=15)
+            except (requests.ConnectionError, requests.Timeout) as e:
+                print(f"❌ Netzwerkfehler bei Batch {i//BATCH_SIZE + 1}: {e}")
+                print("💡 Verwenden Sie den Offline-Modus: python src/offline_recommender.py")
+                continue
             
             if response.status_code == 200:
                 root = ET.fromstring(response.content)
