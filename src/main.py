@@ -34,6 +34,7 @@ from config import (
 from data_loader import BGGDataLoader
 from ml_engine import BGGMLEngine
 from visualizer import BGGVisualizer
+from cache_manager import cache_manager
 
 
 class BGGRecommender:
@@ -351,43 +352,14 @@ class BGGRecommender:
             print("   pip install matplotlib seaborn")
     
     def save_recommendations(self, recommendations):
-        """Speichert Empfehlungen in JSON-Datei für spätere Visualisierung"""
+        """Speichert Empfehlungen mit CacheManager für spätere Visualisierung"""
         if not recommendations:
             return
         
-        # Erstelle bgg_cache Ordner falls nicht vorhanden
-        cache_dir = "bgg_cache"
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        recommendations_file = os.path.join(cache_dir, "recommendations.json")
-        
-        # Konvertiere NumPy-Typen zu Python-Typen für JSON-Serialisierung
-        def convert_numpy_types(obj):
-            """Konvertiert NumPy-Datentypen zu Python-Standard-Datentypen"""
-            import numpy as np
-            
-            if isinstance(obj, np.integer):
-                return int(obj)
-            elif isinstance(obj, np.floating):
-                return float(obj)
-            elif isinstance(obj, np.ndarray):
-                return obj.tolist()
-            elif isinstance(obj, dict):
-                return {key: convert_numpy_types(value) for key, value in obj.items()}
-            elif isinstance(obj, list):
-                return [convert_numpy_types(item) for item in obj]
-            else:
-                return obj
-        
-        # Konvertiere Empfehlungen
-        converted_recommendations = convert_numpy_types(recommendations)
-        
-        # Zusätzliche Metadaten speichern
-        save_data = {
-            "timestamp": datetime.now().isoformat(),
+        # Zusätzliche Metadaten sammeln
+        metadata = {
             "username": self.username,
             "num_recommendations": len(recommendations),
-            "recommendations": converted_recommendations,
             "games_data_summary": {
                 "total_games": len(self.top_games_data) if self.top_games_data is not None else 0,
                 "feature_count": len(self.ml_engine.feature_names) if hasattr(self.ml_engine, 'feature_names') else 0
@@ -395,32 +367,34 @@ class BGGRecommender:
         }
         
         try:
-            with open(recommendations_file, 'w', encoding='utf-8') as f:
-                json.dump(save_data, f, ensure_ascii=False, indent=2)
-            print(f"💾 Empfehlungen gespeichert: {recommendations_file}")
+            cache_manager.save_json_cache('recommendations', recommendations, metadata)
         except Exception as e:
             print(f"⚠️ Fehler beim Speichern der Empfehlungen: {e}")
     
     def load_recommendations(self):
-        """Lädt gespeicherte Empfehlungen aus JSON-Datei"""
-        recommendations_file = os.path.join("bgg_cache", "recommendations.json")
-        
-        if not os.path.exists(recommendations_file):
-            print(f"❌ Keine gespeicherten Empfehlungen gefunden: {recommendations_file}")
-            return None
-        
+        """Lädt gespeicherte Empfehlungen mit CacheManager"""
         try:
-            with open(recommendations_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            cache_result = cache_manager.load_json_cache('recommendations')
             
-            # Zeige Info über geladene Daten
-            timestamp = datetime.fromisoformat(data['timestamp'])
-            print(f"📁 Lade gespeicherte Empfehlungen vom {timestamp.strftime('%d.%m.%Y %H:%M')}")
-            print(f"   Nutzer: {data['username']}")
-            print(f"   Anzahl Empfehlungen: {data['num_recommendations']}")
-            
-            return data['recommendations']
-            
+            if cache_result:
+                recommendations, metadata = cache_result
+                
+                # Zeige Info über geladene Daten
+                timestamp = metadata.get('timestamp')
+                if timestamp:
+                    cache_time = datetime.fromisoformat(timestamp)
+                    print(f"📁 Lade gespeicherte Empfehlungen vom {cache_time.strftime('%d.%m.%Y %H:%M')}")
+                
+                username = metadata.get('metadata', {}).get('username', 'Unbekannt')
+                num_recs = metadata.get('metadata', {}).get('num_recommendations', len(recommendations))
+                print(f"   Nutzer: {username}")
+                print(f"   Anzahl Empfehlungen: {num_recs}")
+                
+                return recommendations
+            else:
+                print("❌ Keine gespeicherten Empfehlungen gefunden")
+                return None
+                
         except Exception as e:
             print(f"⚠️ Fehler beim Laden der Empfehlungen: {e}")
             return None

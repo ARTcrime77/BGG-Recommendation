@@ -22,6 +22,7 @@ from config import (
     RATING_WEIGHTING,
     EXCLUDE_BGG_RATING_FROM_FEATURES
 )
+from cache_manager import cache_manager
 
 
 class BGGMLEngine:
@@ -277,12 +278,35 @@ class BGGMLEngine:
         breakdown += f"{publisher_features} Verlage (×{WEIGHTS['features']['publisher_weight']})"
         print(breakdown)
     
-    def train_model(self):
-        """Trainiert das Machine Learning Modell"""
+    def train_model(self, force_retrain=False):
+        """Trainiert das Machine Learning Modell oder lädt aus Cache"""
         if self.feature_matrix is None:
             return False
         
-        print("🤖 Trainiere ML-Modell...")
+        # Generiere Cache-Key basierend auf Feature-Matrix und Parametern
+        matrix_hash = cache_manager._generate_cache_key(
+            str(self.feature_matrix.shape),
+            str(self.feature_matrix.sum()),  # Einfacher Checksum
+            MAX_NEIGHBORS,
+            SIMILARITY_METRIC,
+            MIN_FEATURE_FREQUENCY
+        )
+        
+        # Versuche Modell aus Cache zu laden
+        if not force_retrain:
+            cached_model = cache_manager.load_model_cache(f"knn_model_{matrix_hash}")
+            
+            if cached_model:
+                self.ml_model = cached_model['model']
+                self.scaler = cached_model['scaler']
+                # Feature-Matrix und Namen sind bereits gesetzt
+                
+                print(f"📁 ML-Modell aus Cache geladen")
+                print(f"  Trainiert mit: {len(self.feature_matrix)} Spielen")
+                print(f"  Features: {self.feature_matrix.shape[1]}")
+                return True
+        
+        print("🤖 Trainiere neues ML-Modell...")
         
         # k-NN für Ähnlichkeitssuche
         n_neighbors = min(MAX_NEIGHBORS, len(self.feature_matrix))
@@ -294,7 +318,23 @@ class BGGMLEngine:
         )
         
         self.ml_model.fit(self.feature_matrix)
-        msg = f"✓ ML-Modell trainiert (k={n_neighbors}, metric={SIMILARITY_METRIC})"
+        
+        # Modell in Cache speichern
+        cache_manager.save_model_cache(
+            f"knn_model_{matrix_hash}",
+            self.ml_model,
+            self.feature_matrix,
+            self.feature_names,
+            self.scaler,
+            {
+                'games_count': len(self.feature_matrix),
+                'features_count': self.feature_matrix.shape[1],
+                'similarity_metric': SIMILARITY_METRIC,
+                'max_neighbors': MAX_NEIGHBORS
+            }
+        )
+        
+        msg = f"✓ ML-Modell trainiert und gecacht (k={n_neighbors}, metric={SIMILARITY_METRIC})"
         print(msg)
         return True
     

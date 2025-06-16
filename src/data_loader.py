@@ -1,5 +1,6 @@
 """
-Datenlade- und Cache-Funktionen für das BGG ML-Empfehlungssystem
+Datenlade-Funktionen für das BGG ML-Empfehlungssystem
+Verwendet CacheManager für einheitliche Cache-Verwaltung
 """
 
 import requests
@@ -13,12 +14,6 @@ from bs4 import BeautifulSoup
 from collections import Counter
 
 from config import (
-    CACHE_DIR,
-    TOP_GAMES_FILE,
-    GAME_DETAILS_FILE,
-    USER_COLLECTION_FILE,
-    USER_PLAYS_FILE,
-    CACHE_MAX_AGE_DAYS,
     BGG_API_BASE_URL,
     BGG_BROWSE_URL,
     API_DELAY,
@@ -29,36 +24,21 @@ from config import (
     MAX_SCRAPING_PAGES,
     SHOW_PROGRESS_EVERY
 )
+from cache_manager import cache_manager
 
 
 class BGGDataLoader:
     def __init__(self):
-        # Cache-Verzeichnis erstellen
-        if not os.path.exists(CACHE_DIR):
-            os.makedirs(CACHE_DIR)
+        """Initialisiert BGG Data Loader mit CacheManager"""
+        self.cache = cache_manager
     
-    def should_update_cache(
-            self, filepath, max_age_days=CACHE_MAX_AGE_DAYS
-    ):
-        """Prüft ob Cache-Datei aktualisiert werden sollte"""
-        if not os.path.exists(filepath):
-            return True
-        
-        file_time = datetime.fromtimestamp(os.path.getmtime(filepath))
-        age = datetime.now() - file_time
-        return age > timedelta(days=max_age_days)
+    def should_update_cache(self, filepath, max_age_days=None):
+        """Delegiert an CacheManager (Kompatibilität)"""
+        return self.cache.should_update_cache(filepath, max_age_days)
     
     def ask_user_update_choice(self, cache_type):
-        """Fragt den Nutzer ob Cache aktualisiert werden soll"""
-        while True:
-            prompt = f"\n{cache_type} aus dem Internet laden? (j/n): "
-            choice = input(prompt).lower().strip()
-            if choice in ['j', 'ja', 'y', 'yes']:
-                return True
-            elif choice in ['n', 'nein', 'no']:
-                return False
-            else:
-                print("Bitte 'j' für Ja oder 'n' für Nein eingeben.")
+        """Delegiert an CacheManager (Kompatibilität)"""
+        return self.cache.ask_user_update_choice(cache_type)
     
     def remove_duplicates_from_games(self, games_list):
         """Entfernt Duplikate basierend auf Spiel-ID"""
@@ -291,9 +271,7 @@ class BGGDataLoader:
     
     def save_top_games_cache(self, games, total_scraped, total_unique):
         """Speichert Top-Spiele Cache mit Metadaten"""
-        cache_data = {
-            'timestamp': datetime.now().isoformat(),
-            'games': games,
+        metadata = {
             'source': 'scraped' if total_scraped != total_unique else 'fallback',
             'stats': {
                 'total_scraped': total_scraped,
@@ -303,20 +281,23 @@ class BGGDataLoader:
             }
         }
         
-        with open(TOP_GAMES_FILE, 'w', encoding='utf-8') as f:
-            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        self.cache.save_json_cache('top_games', games, metadata, 'games')
     
     def load_top_games(self):
         """Lädt Top-Spiele und stellt sicher, dass TARGET_TOP_GAMES eindeutige verfügbar sind"""
-        cache_exists = os.path.exists(TOP_GAMES_FILE)
-        should_update = self.should_update_cache(TOP_GAMES_FILE)
+        cache_result = self.cache.load_json_cache('top_games', 'games')
         
-        if cache_exists and not should_update:
-            print(f"📁 Top {TARGET_TOP_GAMES} Cache gefunden (weniger als {CACHE_MAX_AGE_DAYS} Tage alt)")
-            update_choice = self.ask_user_update_choice(f"Neue Top {TARGET_TOP_GAMES}")
-        elif cache_exists and should_update:
-            print(f"📁 Top {TARGET_TOP_GAMES} Cache gefunden (älter als {CACHE_MAX_AGE_DAYS} Tage)")
-            update_choice = self.ask_user_update_choice(f"Aktualisierte Top {TARGET_TOP_GAMES}")
+        if cache_result:
+            games, metadata = cache_result
+            cache_path = self.cache._get_cache_path('top_games', 'json', 'games')
+            should_update = self.cache.should_update_cache(cache_path)
+            
+            if not should_update:
+                print(f"📁 Top {TARGET_TOP_GAMES} Cache gefunden (weniger als {self.cache.max_age_days} Tage alt)")
+                update_choice = self.ask_user_update_choice(f"Neue Top {TARGET_TOP_GAMES}")
+            else:
+                print(f"📁 Top {TARGET_TOP_GAMES} Cache gefunden (älter als {self.cache.max_age_days} Tage)")
+                update_choice = self.ask_user_update_choice(f"Aktualisierte Top {TARGET_TOP_GAMES}")
         else:
             print(f"📁 Kein Top {TARGET_TOP_GAMES} Cache gefunden")
             update_choice = True
@@ -325,19 +306,13 @@ class BGGDataLoader:
             top_games = self.scrape_bgg_top_games()
         else:
             print(f"📖 Lade Top {TARGET_TOP_GAMES} aus lokalem Cache...")
-            try:
-                with open(TOP_GAMES_FILE, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                    top_games = cache_data['games']
-                    cache_time = cache_data.get('timestamp', 'Unbekannt')
-                    stats = cache_data.get('stats', {})
-                    
-                    print(f"✓ {len(top_games)} Spiele aus Cache geladen (erstellt: {cache_time})")
-                    if stats and stats.get('duplicates_removed', 0) > 0:
-                        print(f"  Cache-Stats: {stats['duplicates_removed']} Duplikate entfernt von {stats['total_scraped']} ursprünglichen Spielen")
-            except Exception as e:
-                print(f"❌ Fehler beim Laden des Caches: {e}")
-                top_games = self.scrape_bgg_top_games()
+            top_games = games
+            cache_time = metadata.get('timestamp', 'Unbekannt')
+            stats = metadata.get('metadata', {}).get('stats', {})
+            
+            print(f"✓ {len(top_games)} Spiele aus Cache geladen (erstellt: {cache_time})")
+            if stats and stats.get('duplicates_removed', 0) > 0:
+                print(f"  Cache-Stats: {stats['duplicates_removed']} Duplikate entfernt von {stats['total_scraped']} ursprünglichen Spielen")
         
         # Finale Validierung - stelle sicher, dass genug Spiele vorhanden sind
         if len(top_games) < TARGET_TOP_GAMES:
@@ -375,16 +350,26 @@ class BGGDataLoader:
     
     def fetch_user_collection(self, username):
         """Lädt die Brettspielsammlung des Nutzers mit Caching"""
-        cache_file = USER_COLLECTION_FILE.replace('.json', f'_{username}.json')
-        cache_exists = os.path.exists(cache_file)
-        should_update = self.should_update_cache(cache_file)
+        cache_result = self.cache.load_user_cache(username, 'collection')
         
-        if cache_exists and not should_update:
-            print(f"📁 Sammlung für {username} im Cache gefunden (weniger als {CACHE_MAX_AGE_DAYS} Tage alt)")
-            update_choice = self.ask_user_update_choice("Neue Sammlung")
-        elif cache_exists and should_update:
-            print(f"📁 Sammlung für {username} im Cache gefunden (älter als {CACHE_MAX_AGE_DAYS} Tage)")
-            update_choice = self.ask_user_update_choice("Aktualisierte Sammlung")
+        if cache_result:
+            games, metadata = cache_result
+            timestamp = metadata.get('timestamp')
+            
+            # Prüfe Cache-Alter anhand des Timestamps
+            if timestamp:
+                cache_time = datetime.fromisoformat(timestamp)
+                age = datetime.now() - cache_time
+                should_update = age > timedelta(days=self.cache.max_age_days)
+            else:
+                should_update = True
+            
+            if not should_update:
+                print(f"📁 Sammlung für {username} im Cache gefunden (weniger als {self.cache.max_age_days} Tage alt)")
+                update_choice = self.ask_user_update_choice("Neue Sammlung")
+            else:
+                print(f"📁 Sammlung für {username} im Cache gefunden (älter als {self.cache.max_age_days} Tage)")
+                update_choice = self.ask_user_update_choice("Aktualisierte Sammlung")
         else:
             print(f"📁 Keine Sammlung für {username} im Cache gefunden")
             update_choice = True
@@ -392,11 +377,11 @@ class BGGDataLoader:
         if update_choice:
             games = self._fetch_user_collection_from_api(username)
             if games is not None:
-                self._save_user_collection_cache(username, games)
+                self.cache.save_user_cache(username, 'collection', games, {'total_games': len(games)})
             return games
         else:
             print(f"📖 Lade Sammlung für {username} aus lokalem Cache...")
-            return self._load_user_collection_cache(username)
+            return cache_result[0] if cache_result else None
     
     def _fetch_user_collection_from_api(self, username):
         """Lädt die Brettspielsammlung des Nutzers von der BGG API"""
@@ -433,52 +418,29 @@ class BGGDataLoader:
             print(f"❌ Fehler beim Laden der Sammlung: {response.status_code}")
             return None
     
-    def _save_user_collection_cache(self, username, games):
-        """Speichert Nutzersammlung im Cache"""
-        cache_file = USER_COLLECTION_FILE.replace('.json', f'_{username}.json')
-        cache_data = {
-            'timestamp': datetime.now().isoformat(),
-            'username': username,
-            'games': games
-        }
-        
-        with open(cache_file, 'w', encoding='utf-8') as f:
-            json.dump(cache_data, f, indent=2, ensure_ascii=False)
-        
-        print(f"💾 Sammlung für {username} im Cache gespeichert")
-    
-    def _load_user_collection_cache(self, username):
-        """Lädt Nutzersammlung aus dem Cache"""
-        cache_file = USER_COLLECTION_FILE.replace('.json', f'_{username}.json')
-        
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                    games = cache_data.get('games', [])
-                    cache_time = cache_data.get('timestamp', 'Unbekannt')
-                    
-                    print(f"✓ {len(games)} Spiele aus Cache geladen (erstellt: {cache_time})")
-                    return games
-            except Exception as e:
-                print(f"❌ Fehler beim Laden der Sammlung aus Cache: {e}")
-                return self._fetch_user_collection_from_api(username)
-        else:
-            print(f"⚠️  Kein Cache für {username} gefunden")
-            return self._fetch_user_collection_from_api(username)
     
     def fetch_user_plays(self, username, pages=10):
         """Lädt die Spielstatistiken des Nutzers mit Caching"""
-        cache_file = USER_PLAYS_FILE.replace('.json', f'_{username}.json')
-        cache_exists = os.path.exists(cache_file)
-        should_update = self.should_update_cache(cache_file)
+        cache_result = self.cache.load_user_cache(username, 'plays')
         
-        if cache_exists and not should_update:
-            print(f"📁 Spielstatistiken für {username} im Cache gefunden (weniger als {CACHE_MAX_AGE_DAYS} Tage alt)")
-            update_choice = self.ask_user_update_choice("Neue Spielstatistiken")
-        elif cache_exists and should_update:
-            print(f"📁 Spielstatistiken für {username} im Cache gefunden (älter als {CACHE_MAX_AGE_DAYS} Tage)")
-            update_choice = self.ask_user_update_choice("Aktualisierte Spielstatistiken")
+        if cache_result:
+            plays, metadata = cache_result
+            timestamp = metadata.get('timestamp')
+            
+            # Prüfe Cache-Alter anhand des Timestamps
+            if timestamp:
+                cache_time = datetime.fromisoformat(timestamp)
+                age = datetime.now() - cache_time
+                should_update = age > timedelta(days=self.cache.max_age_days)
+            else:
+                should_update = True
+            
+            if not should_update:
+                print(f"📁 Spielstatistiken für {username} im Cache gefunden (weniger als {self.cache.max_age_days} Tage alt)")
+                update_choice = self.ask_user_update_choice("Neue Spielstatistiken")
+            else:
+                print(f"📁 Spielstatistiken für {username} im Cache gefunden (älter als {self.cache.max_age_days} Tage)")
+                update_choice = self.ask_user_update_choice("Aktualisierte Spielstatistiken")
         else:
             print(f"📁 Keine Spielstatistiken für {username} im Cache gefunden")
             update_choice = True
@@ -486,11 +448,11 @@ class BGGDataLoader:
         if update_choice:
             plays = self._fetch_user_plays_from_api(username, pages)
             if plays is not None:
-                self._save_user_plays_cache(username, plays)
+                self.cache.save_user_cache(username, 'plays', plays, {'total_plays': len(plays), 'pages': pages})
             return plays
         else:
             print(f"📖 Lade Spielstatistiken für {username} aus lokalem Cache...")
-            return self._load_user_plays_cache(username)
+            return cache_result[0] if cache_result else None
     
     def _fetch_user_plays_from_api(self, username, pages=10):
         """Lädt die Spielstatistiken des Nutzers von der BGG API"""
@@ -531,39 +493,6 @@ class BGGDataLoader:
             print("⚠️  Keine Spielstatistiken gefunden")
             return None
     
-    def _save_user_plays_cache(self, username, plays):
-        """Speichert Nutzerspielstatistiken im Cache"""
-        cache_file = USER_PLAYS_FILE.replace('.json', f'_{username}.json')
-        cache_data = {
-            'timestamp': datetime.now().isoformat(),
-            'username': username,
-            'plays': plays
-        }
-        
-        with open(cache_file, 'w', encoding='utf-8') as f:
-            json.dump(cache_data, f, indent=2, ensure_ascii=False)
-        
-        print(f"💾 Spielstatistiken für {username} im Cache gespeichert")
-    
-    def _load_user_plays_cache(self, username):
-        """Lädt Nutzerspielstatistiken aus dem Cache"""
-        cache_file = USER_PLAYS_FILE.replace('.json', f'_{username}.json')
-        
-        if os.path.exists(cache_file):
-            try:
-                with open(cache_file, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                    plays = cache_data.get('plays', [])
-                    cache_time = cache_data.get('timestamp', 'Unbekannt')
-                    
-                    print(f"✓ {len(plays)} Spieleinträge aus Cache geladen (erstellt: {cache_time})")
-                    return plays
-            except Exception as e:
-                print(f"❌ Fehler beim Laden der Spielstatistiken aus Cache: {e}")
-                return self._fetch_user_plays_from_api(username)
-        else:
-            print(f"⚠️  Kein Cache für Spielstatistiken von {username} gefunden")
-            return self._fetch_user_plays_from_api(username)
     
     def fetch_game_details(self, game_ids):
         """Lädt detaillierte Informationen für Spiele"""
@@ -661,24 +590,22 @@ class BGGDataLoader:
     
     def save_game_details_cache(self, game_details):
         """Speichert Spieldetails im Cache"""
-        cache_data = {
-            'timestamp': datetime.now().isoformat(),
-            'details': game_details
+        metadata = {
+            'total_games': len(game_details),
+            'categories_count': len(set().union(*[details.get('categories', []) for details in game_details.values()])),
+            'mechanics_count': len(set().union(*[details.get('mechanics', []) for details in game_details.values()]))
         }
         
-        with open(GAME_DETAILS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(cache_data, f, indent=2, ensure_ascii=False)
+        self.cache.save_json_cache('game_details', game_details, metadata, 'games')
     
     def load_game_details_cache(self):
         """Lädt Spieldetails aus dem Cache"""
-        if os.path.exists(GAME_DETAILS_FILE):
-            try:
-                with open(GAME_DETAILS_FILE, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                    game_details = cache_data.get('details', {})
-                    cache_time = cache_data.get('timestamp', 'Unbekannt')
-                    print(f"📖 {len(game_details)} Spieldetails aus Cache geladen")
-                    return game_details
-            except Exception as e:
-                print(f"⚠️  Fehler beim Laden der Spieldetails: {e}")
-        return {}
+        cache_result = self.cache.load_json_cache('game_details', 'games')
+        
+        if cache_result:
+            game_details, metadata = cache_result
+            print(f"📖 {len(game_details)} Spieldetails aus Cache geladen")
+            return game_details
+        else:
+            print("📁 Kein Game Details Cache gefunden")
+            return {}
