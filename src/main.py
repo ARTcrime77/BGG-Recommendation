@@ -77,7 +77,7 @@ class BGGRecommender:
         self.game_details.update(cached_details)
         
         # Finde fehlende User-Spiel-Details
-        missing_user_ids = [gid for gid in user_game_ids if gid not in self.game_details]
+        missing_user_ids = [gid for gid in user_game_ids if str(gid) not in self.game_details]
         
         if missing_user_ids:
             print(f"🔍 Lade Details für {len(missing_user_ids)} neue Spiele aus Ihrer Sammlung...")
@@ -108,7 +108,7 @@ class BGGRecommender:
         
         # Finde Spiele, für die wir noch keine Details haben
         top_game_ids = [game['id'] for game in top_games_list]
-        missing_ids = [gid for gid in top_game_ids if gid not in self.game_details]
+        missing_ids = [gid for gid in top_game_ids if str(gid) not in self.game_details]
         
         if missing_ids:
             print(f"📊 {len(missing_ids)} Spiele brauchen noch Details")
@@ -132,9 +132,9 @@ class BGGRecommender:
         
         for game in games_list:
             game_id = game['id']
-            if game_id in self.game_details and game_id not in seen_ids:
+            if str(game_id) in self.game_details and game_id not in seen_ids:
                 seen_ids.add(game_id)
-                details = self.game_details[game_id]
+                details = self.game_details[str(game_id)]
                 final_games.append({
                     'rank': game['rank'],
                     'id': game_id,

@@ -513,17 +513,31 @@ class BGGDataLoader:
     
     
     def fetch_game_details(self, game_ids):
-        """Lädt detaillierte Informationen für Spiele"""
+        """Lädt detaillierte Informationen für Spiele - nutzt Cache und lädt nur fehlende Spiele"""
         if not game_ids:
             return {}
         
         print(f"🔍 Lade Spieldetails für {len(game_ids)} Spiele...")
         
-        game_details = {}
+        # Lade vorhandene Cache-Daten
+        cached_details = self.load_game_details_cache()
+        
+        # Finde fehlende Spiele-IDs
+        missing_ids = [gid for gid in game_ids if gid not in cached_details]
+        
+        if not missing_ids:
+            print(f"✓ Alle {len(game_ids)} Spieldetails bereits im Cache vorhanden")
+            # Gib nur die angeforderten Spiele zurück
+            return {gid: cached_details[gid] for gid in game_ids if gid in cached_details}
+        
+        print(f"📁 {len(cached_details)} Spiele im Cache, {len(missing_ids)} müssen geladen werden")
+        
+        # Lade nur fehlende Spiele von der API
+        new_game_details = {}
         processed = 0
         
-        for i in range(0, len(game_ids), BATCH_SIZE):
-            batch = game_ids[i:i+BATCH_SIZE]
+        for i in range(0, len(missing_ids), BATCH_SIZE):
+            batch = missing_ids[i:i+BATCH_SIZE]
             ids_str = ','.join(map(str, batch))
             
             url = f"{BGG_API_BASE_URL}/thing?id={ids_str}&stats=1"
@@ -580,7 +594,7 @@ class BGGDataLoader:
                             except:
                                 pass
                     
-                    game_details[game_id] = {
+                    new_game_details[game_id] = {
                         'name': name,
                         'categories': categories,
                         'mechanics': mechanics,
@@ -598,10 +612,20 @@ class BGGDataLoader:
             processed += len(batch)
             time.sleep(API_DELAY)
             
-            if processed % SHOW_PROGRESS_EVERY == 0 or processed >= len(game_ids):
-                print(f"  {processed}/{len(game_ids)} Spiele verarbeitet")
+            if processed % SHOW_PROGRESS_EVERY == 0 or processed >= len(missing_ids):
+                print(f"  {processed}/{len(missing_ids)} neue Spiele verarbeitet")
         
-        return game_details
+        # Speichere nur neue Spiele im Cache
+        if new_game_details:
+            print(f"💾 Speichere {len(new_game_details)} neue Spieldetails im Cache...")
+            self.save_game_details_cache(new_game_details)
+        
+        # Kombiniere Cache-Daten mit neuen Daten für Rückgabe
+        all_details = cached_details.copy()
+        all_details.update(new_game_details)
+        
+        # Gib nur die angeforderten Spiele zurück
+        return {gid: all_details[gid] for gid in game_ids if gid in all_details}
     
     def _extract_int_value(self, elem, default):
         """Hilfsfunktion zum sicheren Extrahieren von Integer-Werten"""

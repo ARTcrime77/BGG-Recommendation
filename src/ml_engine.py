@@ -394,11 +394,11 @@ class BGGMLEngine:
             rating = game['rating']
             play_count = play_counts.get(game_id, 0)
             
-            if game_id in game_details:
+            if str(game_id) in game_details:
                 # Erweiterte Gewichtung berechnen
                 weight = self._calculate_advanced_weight(
                     game, play_count, recent_plays.get(game_id, 0), 
-                    play_dates.get(game_id, []), game_details[game_id]
+                    play_dates.get(game_id, []), game_details[str(game_id)]
                 )
                 
                 if weight > 0:
@@ -583,7 +583,7 @@ class BGGMLEngine:
         era_values = []
         
         for game_id, weight in weighted_games:
-            details = game_details[game_id]
+            details = game_details[str(game_id)]
             norm_weight = weight / total_weight
             
             # Standard-Präferenzen
