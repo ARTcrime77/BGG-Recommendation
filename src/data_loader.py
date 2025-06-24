@@ -613,14 +613,27 @@ class BGGDataLoader:
         return default
     
     def save_game_details_cache(self, game_details):
-        """Speichert Spieldetails im Cache"""
+        """Speichert Spieldetails im Cache und führt sie mit vorhandenen Daten zusammen"""
+        # Lade vorhandene Cache-Daten
+        existing_cache = self.load_game_details_cache()
+        
+        # Führe neue Daten mit vorhandenen zusammen
+        if existing_cache:
+            print(f"🔄 Führe {len(game_details)} neue Spieldetails mit {len(existing_cache)} vorhandenen zusammen...")
+            existing_cache.update(game_details)
+            merged_details = existing_cache
+        else:
+            merged_details = game_details
+        
+        # Berechne Metadaten für die zusammengeführten Daten
         metadata = {
-            'total_games': len(game_details),
-            'categories_count': len(set().union(*[details.get('categories', []) for details in game_details.values()])),
-            'mechanics_count': len(set().union(*[details.get('mechanics', []) for details in game_details.values()]))
+            'total_games': len(merged_details),
+            'categories_count': len(set().union(*[details.get('categories', []) for details in merged_details.values()])),
+            'mechanics_count': len(set().union(*[details.get('mechanics', []) for details in merged_details.values()]))
         }
         
-        self.cache.save_json_cache('game_details', game_details, metadata, 'games')
+        print(f"💾 Speichere {len(merged_details)} Spieldetails im Cache...")
+        self.cache.save_json_cache('game_details', merged_details, metadata, 'games')
     
     def load_game_details_cache(self):
         """Lädt Spieldetails aus dem Cache"""
