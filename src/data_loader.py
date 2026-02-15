@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from collections import Counter
 
 from config import (
+    BGG_API_TOKEN,
     BGG_API_BASE_URL,
     BGG_BROWSE_URL,
     API_DELAY,
@@ -32,6 +33,15 @@ class BGGDataLoader:
     def __init__(self):
         """Initialisiert BGG Data Loader mit CacheManager"""
         self.cache = cache_manager
+
+    def _get_bgg_api_headers(self):
+        """Erstellt Header für BGG API-Anfragen, fügt Token hinzu falls vorhanden"""
+        headers = {
+            'User-Agent': USER_AGENT
+        }
+        if BGG_API_TOKEN:
+            headers['Authorization'] = f'Bearer {BGG_API_TOKEN}'
+        return headers
     
     def should_update_cache(self, filepath, max_age_days=None):
         """Delegiert an CacheManager (Kompatibilität)"""
@@ -396,7 +406,7 @@ class BGGDataLoader:
         print(f"🌐 Lade Sammlung für {username} von BGG...")
         
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, headers=self._get_bgg_api_headers(), timeout=10)
         except (requests.ConnectionError, requests.Timeout) as e:
             print(f"❌ Netzwerkfehler: {e}")
             print("💡 Verwenden Sie den Offline-Modus: python src/offline_recommender.py")
@@ -428,6 +438,8 @@ class BGGDataLoader:
             return games
         else:
             print(f"❌ Fehler beim Laden der Sammlung: {response.status_code}")
+            if response.status_code == 401:
+                print("   Unauthorized: Bitte überprüfe deinen BGG_API_TOKEN in config.py")
             return None
     
     
@@ -476,7 +488,7 @@ class BGGDataLoader:
             url = f"{BGG_API_BASE_URL}/plays?username={username}&page={page}"
             
             try:
-                response = requests.get(url, timeout=10)
+                response = requests.get(url, headers=self._get_bgg_api_headers(), timeout=10)
             except (requests.ConnectionError, requests.Timeout) as e:
                 print(f"❌ Netzwerkfehler bei Seite {page}: {e}")
                 print("💡 Verwenden Sie den Offline-Modus: python src/offline_recommender.py")
@@ -502,6 +514,9 @@ class BGGDataLoader:
                 print(f"  Seite {page}: {len(plays)} Einträge")
                 time.sleep(API_DELAY)
             else:
+                print(f"❌ Fehler bei Seite {page}: {response.status_code}")
+                if response.status_code == 401:
+                    print("   Unauthorized: Bitte überprüfe deinen BGG_API_TOKEN in config.py")
                 break
         
         if all_plays:
@@ -543,12 +558,16 @@ class BGGDataLoader:
             url = f"{BGG_API_BASE_URL}/thing?id={ids_str}&stats=1"
             
             try:
-                response = requests.get(url, timeout=15)
+                response = requests.get(url, headers=self._get_bgg_api_headers(), timeout=15)
             except (requests.ConnectionError, requests.Timeout) as e:
                 print(f"❌ Netzwerkfehler bei Batch {i//BATCH_SIZE + 1}: {e}")
                 print("💡 Verwenden Sie den Offline-Modus: python src/offline_recommender.py")
                 continue
             
+            if response.status_code == 401:
+                print(f"❌ Unauthorized bei Batch {i//BATCH_SIZE + 1}: Bitte BGG_API_TOKEN prüfen")
+                continue
+
             if response.status_code == 200:
                 root = ET.fromstring(response.content)
                 

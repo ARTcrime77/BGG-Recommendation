@@ -922,7 +922,7 @@ class BGGMLEngine:
         
         # Designer-Loyalty Bonus
         for designer in game['designers']:
-            if designer in user_preferences['designer_loyalty']:
+            if designer in user_preferences.get('designer_loyalty', {}):
                 loyalty_strength = user_preferences['designer_loyalty'][designer]
                 enhanced_score += loyalty_strength * 0.1  # Max 10% Bonus
         
@@ -951,7 +951,7 @@ class BGGMLEngine:
         
         # Designer Match
         for designer in game['designers'][:2]:
-            if designer in user_preferences['designer_loyalty']:
+            if designer in user_preferences.get('designer_loyalty', {}):
                 reasons.append(f"Lieblings-Autor: {designer}")
                 break
         

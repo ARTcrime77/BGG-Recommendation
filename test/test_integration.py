@@ -190,9 +190,10 @@ class TestBGGIntegration(unittest.TestCase):
         recommender = BGGRecommender('testuser')
         
         # Mock external API calls
+        recommender.data_loader.ask_user_update_choice = Mock(return_value=False)
         recommender.data_loader.fetch_user_collection = Mock(return_value=MOCK_COLLECTION_DATA)
         recommender.data_loader.fetch_user_plays = Mock(return_value=MOCK_PLAYS_DATA)
-        recommender.data_loader.load_top500_games = Mock(return_value=MOCK_TOP_GAMES)
+        recommender.data_loader.load_top_games = Mock(return_value=MOCK_TOP_GAMES)
         recommender.data_loader.load_game_details_cache = Mock(return_value=MOCK_GAME_DETAILS)
         recommender.data_loader.fetch_game_details = Mock(return_value={})
         
@@ -218,7 +219,7 @@ class TestBGGIntegration(unittest.TestCase):
         # Test saving and loading game details cache
         test_cache_file = os.path.join(self.test_cache_dir, 'test_game_details.json')
         
-        with patch('data_loader.GAME_DETAILS_FILE', test_cache_file):
+        with patch('config.GAME_DETAILS_FILE', test_cache_file):
             # Save cache
             data_loader.save_game_details_cache(MOCK_GAME_DETAILS)
             
@@ -231,7 +232,7 @@ class TestBGGIntegration(unittest.TestCase):
             # Verify loaded data matches original
             self.assertEqual(len(loaded_details), len(MOCK_GAME_DETAILS))
             for game_id in MOCK_GAME_DETAILS:
-                self.assertIn(game_id, loaded_details)
+                self.assertIn(str(game_id), loaded_details)
     
     def test_duplicate_handling_integration(self):
         """Test duplicate handling across the system"""
@@ -271,6 +272,7 @@ class TestBGGIntegration(unittest.TestCase):
     def test_error_handling_integration(self):
         """Test error handling across system components"""
         recommender = BGGRecommender('testuser')
+        recommender.data_loader.ask_user_update_choice = Mock(return_value=False)
         
         # Test with API failures
         recommender.data_loader.fetch_user_collection = Mock(return_value=None)
@@ -279,7 +281,7 @@ class TestBGGIntegration(unittest.TestCase):
         self.assertFalse(result)
         
         # Test with empty top games
-        recommender.data_loader.load_top500_games = Mock(return_value=None)
+        recommender.data_loader.load_top_games = Mock(return_value=None)
         
         result = recommender.load_top_games_data()
         self.assertFalse(result)

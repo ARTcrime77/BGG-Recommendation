@@ -13,6 +13,7 @@ USER_PLAYS_FILE = os.path.join(CACHE_DIR, "user_plays.json")
 CACHE_MAX_AGE_DAYS = 7
 
 # BGG API-Einstellungen
+BGG_API_TOKEN = None  # Füge hier deinen BGG API V2 Token ein
 BGG_API_BASE_URL = "https://boardgamegeek.com/xmlapi2"
 BGG_BROWSE_URL = "https://boardgamegeek.com/browse/boardgame/page/"
 API_DELAY = 1.5  # Sekunden zwischen API-Calls

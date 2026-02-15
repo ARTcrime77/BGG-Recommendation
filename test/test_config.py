@@ -17,7 +17,7 @@ class TestConfig(unittest.TestCase):
     def test_cache_settings(self):
         """Test cache configuration settings"""
         self.assertEqual(config.CACHE_DIR, "bgg_cache")
-        self.assertTrue(config.TOP500_FILE.endswith("top500_games.json"))
+        self.assertTrue(config.TOP_GAMES_FILE.endswith("top_games.json"))
         self.assertTrue(config.GAME_DETAILS_FILE.endswith("game_details.json"))
         self.assertIsInstance(config.CACHE_MAX_AGE_DAYS, int)
         self.assertGreater(config.CACHE_MAX_AGE_DAYS, 0)
@@ -69,11 +69,11 @@ class TestConfig(unittest.TestCase):
     def test_file_paths(self):
         """Test that file path configurations are properly constructed"""
         # Test that cache file paths are within cache directory
-        self.assertTrue(config.TOP500_FILE.startswith(config.CACHE_DIR))
+        self.assertTrue(config.TOP_GAMES_FILE.startswith(config.CACHE_DIR))
         self.assertTrue(config.GAME_DETAILS_FILE.startswith(config.CACHE_DIR))
         
         # Test file extensions
-        self.assertTrue(config.TOP500_FILE.endswith('.json'))
+        self.assertTrue(config.TOP_GAMES_FILE.endswith('.json'))
         self.assertTrue(config.GAME_DETAILS_FILE.endswith('.json'))
     
     def test_reasonable_values(self):

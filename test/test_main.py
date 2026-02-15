@@ -77,7 +77,7 @@ class TestBGGRecommender(unittest.TestCase):
     
     def test_load_top_games_data_success(self):
         """Test successful top games data loading"""
-        self.recommender.data_loader.load_top500_games = Mock(return_value=MOCK_TOP_GAMES)
+        self.recommender.data_loader.load_top_games = Mock(return_value=MOCK_TOP_GAMES)
         self.recommender.data_loader.load_game_details_cache = Mock(return_value=MOCK_GAME_DETAILS)
         self.recommender.data_loader.fetch_game_details = Mock(return_value={})
         self.recommender.data_loader.ask_user_update_choice = Mock(return_value=False)
@@ -93,7 +93,8 @@ class TestBGGRecommender(unittest.TestCase):
     
     def test_load_top_games_data_no_games(self):
         """Test top games data loading when no games are found"""
-        self.recommender.data_loader.load_top500_games = Mock(return_value=None)
+        self.recommender.data_loader.load_top_games = Mock(return_value=None)
+        self.recommender.data_loader.ask_user_update_choice = Mock(return_value=False)
         
         result = self.recommender.load_top_games_data()
         
@@ -101,7 +102,7 @@ class TestBGGRecommender(unittest.TestCase):
     
     def test_load_top_games_data_missing_details(self):
         """Test top games data loading with missing game details"""
-        self.recommender.data_loader.load_top500_games = Mock(return_value=MOCK_TOP_GAMES)
+        self.recommender.data_loader.load_top_games = Mock(return_value=MOCK_TOP_GAMES)
         self.recommender.data_loader.load_game_details_cache = Mock(return_value={})
         self.recommender.data_loader.ask_user_update_choice = Mock(return_value=True)
         self.recommender.data_loader.fetch_game_details = Mock(return_value=MOCK_GAME_DETAILS)

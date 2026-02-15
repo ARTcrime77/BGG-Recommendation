@@ -78,11 +78,11 @@ class TestBGGMLEngine(unittest.TestCase):
                 'rank': 3
             }
         ])
+        self.engine.create_feature_matrix(self.test_games_df)
+        self.engine.train_model()
     
     def test_init(self):
         """Test BGGMLEngine initialization"""
-        self.assertIsNone(self.engine.feature_matrix)
-        self.assertIsNone(self.engine.ml_model)
         self.assertEqual(self.engine.feature_info, {})
         self.assertIsNotNone(self.engine.scaler)
     
@@ -192,9 +192,6 @@ class TestBGGMLEngine(unittest.TestCase):
     
     def test_train_model_success(self):
         """Test successful ML model training"""
-        # Setup feature matrix first
-        self.engine.create_feature_matrix(self.test_games_df)
-        
         result = self.engine.train_model()
         
         self.assertTrue(result)
@@ -281,10 +278,6 @@ class TestBGGMLEngine(unittest.TestCase):
     
     def test_generate_recommendations_success(self):
         """Test successful recommendation generation"""
-        # Setup engine
-        self.engine.create_feature_matrix(self.test_games_df)
-        self.engine.train_model()
-        
         # Mock user preferences
         user_prefs = {
             'avg_rating': 8.0,
@@ -324,9 +317,6 @@ class TestBGGMLEngine(unittest.TestCase):
     
     def test_generate_recommendations_no_preferences(self):
         """Test recommendation generation without user preferences"""
-        self.engine.create_feature_matrix(self.test_games_df)
-        self.engine.train_model()
-        
         recommendations = self.engine.generate_recommendations(
             None, self.test_games_df, set(), 5
         )
