@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 from matplotlib.patches import Rectangle
 import warnings
+from math import pi
 warnings.filterwarnings('ignore')
 
 # Deutsche Schriftarten und Stil
@@ -27,7 +28,182 @@ class BGGVisualizer:
         """Konfiguriert den visuellen Stil"""
         plt.style.use('default')
         sns.set_palette("husl")
+    
+    def plot_user_preferences(self, user_preferences, save_path=None, show_gui=True):
+        """
+        Visualisiert die Nutzerpräferenzen als Radar- und Balkendiagramm.
+        """
+        if not user_preferences:
+            print("⚠️ Keine Nutzerpräferenzen zum Visualisieren vorhanden.")
+            return
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 7))
+        fig.suptitle('Analyse der Nutzerpräferenzen', fontsize=16, fontweight='bold')
+
+        # === 1. Radar Chart für kategorische Präferenzen ===
+        top_categories = user_preferences['categories'].most_common(5)
+        top_mechanics = user_preferences['mechanics'].most_common(5)
         
+        labels = [cat[0] for cat in top_categories] + [mech[0] for mech in top_mechanics]
+        values = [cat[1] for cat in top_categories] + [mech[1] for mech in top_mechanics]
+        
+        num_vars = len(labels)
+        
+        # Normalisiere Werte für bessere Darstellung
+        if max(values) > 0:
+            values = [v / max(values) for v in values]
+
+        angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+        values += values[:1]
+        angles += angles[:1]
+
+        ax1 = plt.subplot(1, 2, 1, polar=True)
+        ax1.fill(angles, values, color='skyblue', alpha=0.4)
+        ax1.plot(angles, values, color='blue', linewidth=2)
+        
+        ax1.set_yticklabels([])
+        ax1.set_xticks(angles[:-1])
+        ax1.set_xticklabels(labels, size=8)
+        
+        ax1.set_title('Top Kategorien & Mechaniken', fontsize=12, pad=20)
+
+        # === 2. Bar Chart für numerische Präferenzen ===
+        numeric_prefs = {
+            'Komplexität': user_preferences.get('complexity', 0),
+            'Min. Spieler': user_preferences.get('min_players', 0),
+            'Max. Spieler': user_preferences.get('max_players', 0),
+            'Spielzeit (Min.)': user_preferences.get('playing_time', 0),
+            'Veröffentl.-Jahr': user_preferences.get('year_published', 2000)
+        }
+        
+        names = list(numeric_prefs.keys())
+        scores = list(numeric_prefs.values())
+        
+        bars = ax2.barh(names, scores, color=sns.color_palette("viridis", len(names)))
+        ax2.set_xlabel('Durchschnittlicher Präferenz-Wert')
+        ax2.set_title('Numerische Präferenzen', fontsize=12)
+        ax2.grid(axis='x', linestyle='--', alpha=0.6)
+
+        for i, (bar, score) in enumerate(zip(bars, scores)):
+            ax2.text(score + 0.05 * max(scores), i, f'{score:.2f}', va='center', ha='left', fontsize=9)
+            
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"📊 Nutzerpräferenz-Analyse gespeichert: {save_path}")
+
+        if show_gui:
+            try:
+                plt.show(block=False)
+                plt.pause(0.1)
+            except Exception as e:
+                print(f"⚠️ GUI-Anzeige nicht verfügbar: {e}")
+
+        plt.close()
+
+    def plot_era_complexity_heatmap(self, recommendations_df, save_path=None, show_gui=True):
+        """
+        Erstellt eine Heatmap der Empfehlungen nach Ära und Komplexität.
+        """
+        if recommendations_df.empty:
+            return
+
+        df = recommendations_df.copy()
+
+        # Binning für Jahr und Komplexität
+        year_bins = [1989, 2000, 2010, 2020, 2030]
+        year_labels = ['1990er', '2000er', '2010er', '2020er']
+        df['era'] = pd.cut(df['year_published'], bins=year_bins, labels=year_labels, right=False)
+
+        complexity_bins = [0, 2, 3, 4, 5.1]
+        complexity_labels = ['Leicht (<2)', 'Mittel (2-3)', 'Gehoben (3-4)', 'Experte (>4)']
+        df['complexity_level'] = pd.cut(df['complexity'], bins=complexity_bins, labels=complexity_labels, right=False)
+
+        # Pivot-Tabelle erstellen
+        pivot_table = df.pivot_table(index='era', columns='complexity_level', aggfunc='size', fill_value=0)
+
+        if pivot_table.empty:
+            print("⚠️ Keine Daten für Ära/Komplexitäts-Heatmap vorhanden.")
+            return
+
+        fig, ax = plt.subplots(figsize=(10, 8))
+        sns.heatmap(pivot_table, annot=True, fmt="d", cmap="YlGnBu", linewidths=.5, ax=ax)
+        
+        ax.set_title('Empfehlungen nach Ära und Komplexität', fontsize=16, fontweight='bold', pad=20)
+        ax.set_xlabel('Komplexitäts-Niveau', fontsize=12)
+        ax.set_ylabel('Veröffentlichungs-Ära', fontsize=12)
+        
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"📊 Ära/Komplexitäts-Heatmap gespeichert: {save_path}")
+
+        if show_gui:
+            try:
+                plt.show(block=False)
+                plt.pause(0.1)
+            except Exception as e:
+                print(f"⚠️ GUI-Anzeige nicht verfügbar: {e}")
+
+        plt.close()
+
+    def plot_creator_treemap(self, recommendations_df, save_path=None, show_gui=True):
+        """
+        Erstellt ein Treemap für die Top-Designer und -Verlage in den Empfehlungen.
+        Benötigt die 'squarify' Bibliothek: pip install squarify
+        """
+        if recommendations_df.empty:
+            return
+
+        try:
+            import squarify
+        except ImportError:
+            print("⚠️ 'squarify' Bibliothek nicht gefunden. Bitte installieren: pip install squarify")
+            return
+
+        df = recommendations_df.copy()
+
+        # Designer und Verlage extrahieren und zählen
+        all_designers = [d for sublist in df['designers'].dropna() for d in sublist]
+        designer_counts = pd.Series(all_designers).value_counts().nlargest(15)
+
+        all_publishers = [p for sublist in df['publishers'].dropna() for p in sublist]
+        publisher_counts = pd.Series(all_publishers).value_counts().nlargest(15)
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
+        fig.suptitle('Top-Autoren und -Verlage in den Empfehlungen', fontsize=16, fontweight='bold')
+
+        # Treemap für Designer
+        if not designer_counts.empty:
+            colors1 = plt.cm.viridis(np.linspace(0, 1, len(designer_counts)))
+            squarify.plot(sizes=designer_counts.values, label=designer_counts.index, alpha=0.8, color=colors1, ax=ax1)
+            ax1.set_title('Top 15 Autoren', fontsize=12)
+            ax1.axis('off')
+
+        # Treemap für Verlage
+        if not publisher_counts.empty:
+            colors2 = plt.cm.plasma(np.linspace(0, 1, len(publisher_counts)))
+            squarify.plot(sizes=publisher_counts.values, label=publisher_counts.index, alpha=0.8, color=colors2, ax=ax2)
+            ax2.set_title('Top 15 Verlage', fontsize=12)
+            ax2.axis('off')
+        
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"📊 Creator-Treemap gespeichert: {save_path}")
+
+        if show_gui:
+            try:
+                plt.show(block=False)
+                plt.pause(0.1)
+            except Exception as e:
+                print(f"⚠️ GUI-Anzeige nicht verfügbar: {e}")
+
+        plt.close()
+
     def plot_recommendation_similarity(self, recommendations_df, user_games=None, save_path=None, show_gui=True):
         """
         Erstellt ein Ähnlichkeitsdiagramm der Empfehlungen

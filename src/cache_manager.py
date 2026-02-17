@@ -287,8 +287,8 @@ class CacheManager:
             print(f"⚠️ Fehler beim Laden von ML-Modell Cache {cache_key}: {e}")
             return None
     
-    def save_feature_cache(self, cache_key: str, features: np.ndarray, 
-                          feature_info: Dict, metadata: Optional[Dict] = None) -> str:
+    def save_feature_cache(self, cache_key: str, features: np.ndarray,
+                           feature_info: Dict, scaler: Any, metadata: Optional[Dict] = None) -> str:
         """
         Speichert berechnete Features
         
@@ -296,6 +296,7 @@ class CacheManager:
             cache_key: Cache-Schlüssel
             features: Feature-Matrix
             feature_info: Feature-Informationen
+            scaler: Scaler-Objekt
             metadata: Zusätzliche Metadaten
             
         Returns:
@@ -308,6 +309,7 @@ class CacheManager:
             'cache_key': cache_key,
             'features': features,
             'feature_info': feature_info,
+            'scaler': scaler,
             'metadata': metadata or {}
         }
         

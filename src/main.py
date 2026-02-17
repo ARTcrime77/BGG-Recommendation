@@ -35,6 +35,7 @@ from config import (
 from data_loader import BGGDataLoader
 from ml_engine import BGGMLEngine
 from visualizer import BGGVisualizer
+from report_generator import ReportGenerator
 from cache_manager import cache_manager
 
 
@@ -77,7 +78,7 @@ class BGGRecommender:
         self.game_details.update(cached_details)
         
         # Finde fehlende User-Spiel-Details
-        missing_user_ids = [gid for gid in user_game_ids if str(gid) not in self.game_details]
+        missing_user_ids = [gid for gid in user_game_ids if gid not in self.game_details]
         
         if missing_user_ids:
             print(f"🔍 Lade Details für {len(missing_user_ids)} neue Spiele aus Ihrer Sammlung...")
@@ -108,7 +109,7 @@ class BGGRecommender:
         
         # Finde Spiele, für die wir noch keine Details haben
         top_game_ids = [game['id'] for game in top_games_list]
-        missing_ids = [gid for gid in top_game_ids if str(gid) not in self.game_details]
+        missing_ids = [gid for gid in top_game_ids if gid not in self.game_details]
         
         if missing_ids:
             print(f"📊 {len(missing_ids)} Spiele brauchen noch Details")
@@ -132,9 +133,9 @@ class BGGRecommender:
         
         for game in games_list:
             game_id = game['id']
-            if str(game_id) in self.game_details and game_id not in seen_ids:
+            if game_id in self.game_details and game_id not in seen_ids:
                 seen_ids.add(game_id)
-                details = self.game_details[str(game_id)]
+                details = self.game_details[game_id]
                 final_games.append({
                     'rank': game['rank'],
                     'id': game_id,
@@ -192,11 +193,11 @@ class BGGRecommender:
         print(f"\n🎯 Generiere {num_recommendations} personalisierte Empfehlungen...")
         
         # Erstelle Nutzerpräferenzen
-        user_preferences = self.ml_engine.create_user_preferences_vector(
+        self.user_preferences = self.ml_engine.create_user_preferences_vector(
             self.collection_data, self.plays_data, self.game_details
         )
         
-        if user_preferences is None:
+        if self.user_preferences is None:
             print("❌ Nicht genügend Nutzerdaten für Empfehlungen")
             return []
         
@@ -205,7 +206,7 @@ class BGGRecommender:
         
         # Generiere Empfehlungen
         recommendations = self.ml_engine.generate_recommendations(
-            user_preferences, self.top_games_data, owned_game_ids,
+            self.user_preferences, self.top_games_data, owned_game_ids,
             num_recommendations
         )
         
@@ -243,49 +244,15 @@ class BGGRecommender:
         if os.path.exists(GAME_DETAILS_FILE):
             cache_time = datetime.fromtimestamp(os.path.getmtime(GAME_DETAILS_FILE))
             print(f"   Spieldetails: {cache_time.strftime('%d.%m.%Y %H:%M')}")
-    
-    def run_analysis(self):
-        """Führt die komplette ML-Analyse durch"""
-        print(f"🤖 BGG ML-Empfehlungssystem mit {TARGET_TOP_GAMES} eindeutigen Top-Spielen")
-        print("=" * 65)
-        
-        # 1. Nutzerdaten laden
-        if not self.load_user_data():
-            return
-        
-        # 2. Top-Spiele laden (automatisch auf TARGET_TOP_GAMES eindeutige erweitert)
-        if not self.load_top_games_data():
-            return
-        
-        # 3. ML-Modell trainieren
-        if not self.train_ml_model():
-            return
-        
-        # 4. Empfehlungen generieren
-        recommendations = self.generate_recommendations()
-        
-        # 5. Ergebnisse anzeigen
-        self.display_recommendations(recommendations)
-        
-        # 6. Empfehlungen speichern
-        self.save_recommendations(recommendations)
-        
-        # 7. Visualisierungen erstellen (falls aktiviert)
-        if ENABLE_VISUALIZATIONS:
-            self.create_visualizations(recommendations)
-        else:
-            print("📊 Visualisierungen deaktiviert (ENABLE_VISUALIZATIONS = False)")
-        
-        # 8. Cache-Info
-        self.show_cache_info()
-    
+
     def create_visualizations(self, recommendations):
         """Erstellt alle Visualisierungen der Empfehlungsergebnisse"""
         if not recommendations:
             print("⚠️ Keine Empfehlungen für Visualisierung vorhanden.")
-            return
+            return {}
         
         print("\n📊 Erstelle Visualisierungen...")
+        save_paths = {}
         
         try:
             # Konvertiere Empfehlungen zu DataFrame
@@ -300,7 +267,6 @@ class BGGRecommender:
             feature_names = self.ml_engine.feature_names
             
             # Konfiguriere Speicherpfade basierend auf Einstellungen
-            save_paths = {}
             if SAVE_PLOTS_AS_FILES:
                 plots_dir = "bgg_cache/plots"
                 os.makedirs(plots_dir, exist_ok=True)
@@ -308,13 +274,37 @@ class BGGRecommender:
                 save_paths = {
                     'similarity': os.path.join(plots_dir, f"similarity_{timestamp}.png"),
                     'ratings': os.path.join(plots_dir, f"ratings_{timestamp}.png"),
-                    'features': os.path.join(plots_dir, f"features_{timestamp}.png")
+                    'features': os.path.join(plots_dir, f"features_{timestamp}.png"),
+                    'user_prefs': os.path.join(plots_dir, f"user_prefs_{timestamp}.png"),
+                    'era_complexity': os.path.join(plots_dir, f"era_complexity_{timestamp}.png"),
+                    'creators': os.path.join(plots_dir, f"creators_{timestamp}.png")
                 }
             
             # Konfiguriere GUI-Anzeige
             original_show_gui = SHOW_PLOTS_GUI
             
             # Einzelne Plots erstellen
+            print("📊 Erstelle Nutzerprofil-Analyse...")
+            self.visualizer.plot_user_preferences(
+                self.user_preferences,
+                save_paths.get('user_prefs'),
+                show_gui=original_show_gui
+            )
+
+            print("📊 Erstelle Ära/Komplexitäts-Heatmap...")
+            self.visualizer.plot_era_complexity_heatmap(
+                recommendations_df,
+                save_paths.get('era_complexity'),
+                show_gui=original_show_gui
+            )
+
+            print("📊 Erstelle Creator-Treemap...")
+            self.visualizer.plot_creator_treemap(
+                recommendations_df,
+                save_paths.get('creators'),
+                show_gui=original_show_gui
+            )
+
             print("📊 Erstelle Ähnlichkeitsdiagramm...")
             self.visualizer.plot_recommendation_similarity(
                 recommendations_df, 
@@ -351,6 +341,54 @@ class BGGRecommender:
             print(f"⚠️ Fehler beim Erstellen der Visualisierungen: {e}")
             print("💡 Stellen Sie sicher, dass matplotlib und seaborn installiert sind:")
             print("   pip install matplotlib seaborn")
+            
+        return save_paths
+    
+    def run_analysis(self):
+        """Führt die komplette ML-Analyse durch"""
+        print(f"🤖 BGG ML-Empfehlungssystem mit {TARGET_TOP_GAMES} eindeutigen Top-Spielen")
+        print("=" * 65)
+        
+        # 1. Nutzerdaten laden
+        if not self.load_user_data():
+            return
+        
+        # 2. Top-Spiele laden (automatisch auf TARGET_TOP_GAMES eindeutige erweitert)
+        if not self.load_top_games_data():
+            return
+        
+        # 3. ML-Modell trainieren
+        if not self.train_ml_model():
+            return
+        
+        # 4. Empfehlungen generieren
+        recommendations = self.generate_recommendations()
+        
+        # 5. Ergebnisse anzeigen
+        self.display_recommendations(recommendations)
+        
+        # 6. Empfehlungen speichern
+        self.save_recommendations(recommendations)
+        
+        # 7. Visualisierungen erstellen (falls aktiviert)
+        plot_paths = {}
+        if ENABLE_VISUALIZATIONS:
+            plot_paths = self.create_visualizations(recommendations)
+        else:
+            print("📊 Visualisierungen deaktiviert (ENABLE_VISUALIZATIONS = False)")
+        
+        # 8. HTML-Report erstellen
+        if plot_paths:
+            print("\n📝 Erstelle HTML-Report...")
+            ReportGenerator.create_html_report(
+                recommendations,
+                self.user_preferences,
+                plot_paths,
+                save_dir=os.getcwd() 
+            )
+
+        # 9. Cache-Info
+        self.show_cache_info()
     
     def save_recommendations(self, recommendations):
         """Speichert Empfehlungen mit CacheManager für spätere Visualisierung"""

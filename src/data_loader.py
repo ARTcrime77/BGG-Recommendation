@@ -684,8 +684,14 @@ class BGGDataLoader:
         
         if cache_result:
             game_details, metadata = cache_result
-            print(f"📖 {len(game_details)} Spieldetails aus Cache geladen")
-            return game_details
+            try:
+                # JSON speichert Schlüssel als Strings, wir brauchen Integer
+                int_keyed_details = {int(k): v for k, v in game_details.items()}
+                print(f"📖 {len(int_keyed_details)} Spieldetails aus Cache geladen")
+                return int_keyed_details
+            except (ValueError, TypeError):
+                print("⚠️ Fehler beim Konvertieren der Cache-Schlüssel, Cache wird ignoriert.")
+                return {}
         else:
             print("📁 Kein Game Details Cache gefunden")
             return {}

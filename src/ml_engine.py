@@ -52,14 +52,17 @@ class BGGMLEngine:
         if not force_recompute:
             cached_features = cache_manager.load_feature_cache(feature_cache_key)
             
-            if cached_features:
+            if cached_features and 'scaler' in cached_features:
                 self.feature_matrix = cached_features['features']
                 self.feature_info = cached_features['feature_info']
+                self.scaler = cached_features['scaler']
                 self.feature_names = cached_features['metadata'].get('feature_names', [])
                 
                 print(f"📁 Feature-Matrix aus Cache geladen")
                 print(f"   {self.feature_matrix.shape[0]} Spiele × {self.feature_matrix.shape[1]} Features")
                 return True
+            elif cached_features:
+                print("️️⚠️ Veralteter Feature-Cache gefunden, wird ignoriert.")
         
         print("🔧 Erstelle Feature-Matrix...")
         
@@ -193,6 +196,7 @@ class BGGMLEngine:
             feature_cache_key,
             self.feature_matrix,
             self.feature_info,
+            self.scaler,
             {
                 'feature_names': self.feature_names,
                 'games_count': len(games_df),
@@ -332,7 +336,7 @@ class BGGMLEngine:
         if not force_retrain:
             cached_model = cache_manager.load_model_cache(f"knn_model_{matrix_hash}")
             
-            if cached_model:
+            if cached_model and 'scaler' in cached_model and cached_model['scaler'] is not None:
                 self.ml_model = cached_model['model']
                 self.scaler = cached_model['scaler']
                 # Feature-Matrix und Namen sind bereits gesetzt
@@ -341,6 +345,8 @@ class BGGMLEngine:
                 print(f"  Trainiert mit: {len(self.feature_matrix)} Spielen")
                 print(f"  Features: {self.feature_matrix.shape[1]}")
                 return True
+            elif cached_model:
+                print("️️⚠️ Veralteter Modell-Cache gefunden, wird ignoriert.")
         
         print("🤖 Trainiere neues ML-Modell...")
         
@@ -394,11 +400,11 @@ class BGGMLEngine:
             rating = game['rating']
             play_count = play_counts.get(game_id, 0)
             
-            if str(game_id) in game_details:
+            if game_id in game_details:
                 # Erweiterte Gewichtung berechnen
                 weight = self._calculate_advanced_weight(
                     game, play_count, recent_plays.get(game_id, 0), 
-                    play_dates.get(game_id, []), game_details[str(game_id)]
+                    play_dates.get(game_id, []), game_details[game_id]
                 )
                 
                 if weight > 0:
@@ -583,7 +589,7 @@ class BGGMLEngine:
         era_values = []
         
         for game_id, weight in weighted_games:
-            details = game_details[str(game_id)]
+            details = game_details[game_id]
             norm_weight = weight / total_weight
             
             # Standard-Präferenzen

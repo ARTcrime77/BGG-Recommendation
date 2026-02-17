@@ -13,7 +13,7 @@ USER_PLAYS_FILE = os.path.join(CACHE_DIR, "user_plays.json")
 CACHE_MAX_AGE_DAYS = 7
 
 # BGG API-Einstellungen
-BGG_API_TOKEN = None  # Füge hier deinen BGG API V2 Token ein
+BGG_API_TOKEN = "92ffa954-8e7e-4e91-8986-b93e896f2773" # Füge hier deinen BGG API V2 Token ein
 BGG_API_BASE_URL = "https://boardgamegeek.com/xmlapi2"
 BGG_BROWSE_URL = "https://boardgamegeek.com/browse/boardgame/page/"
 API_DELAY = 1.5  # Sekunden zwischen API-Calls
@@ -32,8 +32,8 @@ SIMILARITY_METRIC = 'cosine'
 EXCLUDE_BGG_RATING_FROM_FEATURES = True  # BGG-Rating aus ML-Features entfernen (empfohlen)
 
 # Visualisierungs-Einstellungen
-ENABLE_VISUALIZATIONS = False  # Visualisierungen aktivieren/deaktivieren
-SAVE_PLOTS_AS_FILES = False    # Plots als PNG-Dateien speichern
+ENABLE_VISUALIZATIONS = True  # Visualisierungen aktivieren/deaktivieren
+SAVE_PLOTS_AS_FILES = True    # Plots als PNG-Dateien speichern
 SHOW_PLOTS_GUI = False         # Plots in GUI anzeigen (falls Backend verfügbar)
 
 # Gewichtungsparameter
