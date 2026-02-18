@@ -29,6 +29,138 @@ class BGGVisualizer:
         plt.style.use('default')
         sns.set_palette("husl")
     
+    def plot_user_collection_stats(self, collection_data, plays_data=None, save_path=None, show_gui=True):
+        """
+        Visualisiert Statistiken zur Spielesammlung und den gespielten Spielen.
+        """
+        if not collection_data:
+            print("⚠️ Keine Sammlungsdaten zum Visualisieren vorhanden.")
+            return
+
+        fig = plt.figure(figsize=(16, 10))
+        fig.suptitle('Statistiken Ihrer Sammlung', fontsize=16, fontweight='bold')
+
+        # === 1. Collection Status (Pie Chart) ===
+        ax1 = plt.subplot(2, 2, 1)
+        
+        # Daten aufbereiten
+        df_col = pd.DataFrame(collection_data)
+        owned_count = df_col['owned'].sum() if 'owned' in df_col.columns else 0
+        rated_count = df_col['rating'].notna().sum() if 'rating' in df_col.columns else 0
+        
+        # Wir kategorisieren in: "Nur Besessen", "Besessen & Bewertet", "Nur Bewertet (nicht besessen)"
+        # Da wir 'owned' und 'rating' haben, nehmen wir an:
+        # - Owned & Rated
+        # - Owned & Not Rated
+        # - Not Owned & Rated (z.B. gespielt aber nicht im Besitz)
+        
+        # Da die Datenstruktur flach ist, zählen wir einfach Status-Typen
+        status_counts = {
+            'Im Besitz': owned_count,
+            'Bewertet': rated_count
+        }
+        
+        # Einfacheres Pie-Chart: Status der Sammlungseinträge
+        # Wir nehmen an, collection_data enthält alle Einträge (Owned + Rated + Played etc.)
+        total_items = len(collection_data)
+        
+        # Versuche genauere Aufschlüsselung wenn möglich
+        if 'owned' in df_col.columns and 'rating' in df_col.columns:
+            owned_rated = df_col[(df_col['owned'] == True) & (df_col['rating'].notna())].shape[0]
+            owned_unrated = df_col[(df_col['owned'] == True) & (df_col['rating'].isna())].shape[0]
+            not_owned_rated = df_col[(df_col['owned'] == False) & (df_col['rating'].notna())].shape[0]
+            others = total_items - (owned_rated + owned_unrated + not_owned_rated)
+            
+            labels = ['Besitz & Bewertet', 'Besitz (Unbewertet)', 'Nur Bewertet', 'Sonstige (Wishlist etc.)']
+            sizes = [owned_rated, owned_unrated, not_owned_rated, others]
+            
+            # Filter leere
+            labels = [l for l, s in zip(labels, sizes) if s > 0]
+            sizes = [s for s in sizes if s > 0]
+            
+            ax1.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, 
+                   colors=sns.color_palette("pastel"))
+            ax1.set_title(f'Status der Sammlung ({total_items} Einträge)', fontsize=12)
+        else:
+            # Fallback
+            ax1.text(0.5, 0.5, 'Detaillierte Status-Daten\nnicht verfügbar', 
+                    ha='center', va='center', fontsize=12)
+
+        # === 2. User Ratings Distribution (Histogram) ===
+        ax2 = plt.subplot(2, 2, 2)
+        
+        if 'rating' in df_col.columns:
+            user_ratings = df_col['rating'].dropna()
+            if not user_ratings.empty:
+                sns.histplot(user_ratings, bins=10, kde=True, ax=ax2, color='skyblue')
+                ax2.set_xlabel('Ihre Bewertung')
+                ax2.set_ylabel('Anzahl Spiele')
+                ax2.set_title(f'Verteilung Ihrer Bewertungen (Ø {user_ratings.mean():.2f})', fontsize=12)
+                ax2.axvline(user_ratings.mean(), color='red', linestyle='--', alpha=0.7)
+            else:
+                ax2.text(0.5, 0.5, 'Keine Bewertungen vorhanden', ha='center', va='center')
+        else:
+            ax2.text(0.5, 0.5, 'Keine Bewertungsdaten verfügbar', ha='center', va='center')
+
+        # === 3. Top Played Games (Bar Chart) ===
+        ax3 = plt.subplot(2, 2, 3)
+        
+        if plays_data:
+            df_plays = pd.DataFrame(plays_data)
+            if 'game_name' in df_plays.columns and 'quantity' in df_plays.columns:
+                # Gruppieren nach Spiel und Summe der Plays
+                top_played = df_plays.groupby('game_name')['quantity'].sum().sort_values(ascending=False).head(10)
+                
+                sns.barplot(x=top_played.values, y=top_played.index, ax=ax3, palette="viridis")
+                ax3.set_xlabel('Anzahl Partien')
+                ax3.set_title('Top 10 Meistgespielte Spiele', fontsize=12)
+            else:
+                ax3.text(0.5, 0.5, 'Ungültiges Plays-Datenformat', ha='center', va='center')
+        else:
+            ax3.text(0.5, 0.5, 'Keine Spieldaten (Plays) verfügbar\nImportieren Sie Plays von BGG', 
+                    ha='center', va='center', bbox=dict(boxstyle="round,pad=0.3", facecolor="#f0f0f0"))
+
+        # === 4. Plays Activity Over Time (Line Chart) ===
+        ax4 = plt.subplot(2, 2, 4)
+        
+        if plays_data:
+            df_plays = pd.DataFrame(plays_data)
+            if 'date' in df_plays.columns:
+                try:
+                    df_plays['date'] = pd.to_datetime(df_plays['date'])
+                    plays_by_date = df_plays.set_index('date').resample('M')['quantity'].sum()
+                    
+                    if not plays_by_date.empty:
+                        plays_by_date.plot(ax=ax4, marker='o', linestyle='-', color='purple')
+                        ax4.set_xlabel('Datum')
+                        ax4.set_ylabel('Spiele pro Monat')
+                        ax4.set_title('Spielaktivität über Zeit', fontsize=12)
+                        ax4.grid(True, alpha=0.3)
+                    else:
+                        ax4.text(0.5, 0.5, 'Nicht genügend Zeitdaten', ha='center', va='center')
+                except Exception as e:
+                    ax4.text(0.5, 0.5, f'Fehler bei Zeitdaten: {e}', ha='center', va='center')
+            else:
+                ax4.text(0.5, 0.5, 'Keine Datumsdaten verfügbar', ha='center', va='center')
+        else:
+            ax4.text(0.5, 0.5, 'Keine Aktivitätsdaten verfügbar', 
+                    ha='center', va='center', bbox=dict(boxstyle="round,pad=0.3", facecolor="#f0f0f0"))
+
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"📊 Sammlungs-Statistiken gespeichert: {save_path}")
+
+        if show_gui:
+            try:
+                plt.show(block=False)
+                plt.pause(0.1)
+            except Exception as e:
+                print(f"⚠️ GUI-Anzeige nicht verfügbar: {e}")
+
+        plt.close()
+
     def plot_user_preferences(self, user_preferences, save_path=None, show_gui=True):
         """
         Visualisiert die Nutzerpräferenzen als Radar- und Balkendiagramm.

@@ -60,6 +60,12 @@ class ReportGenerator:
                 </header>
 
                 {ReportGenerator._generate_plot_section(
+                    "Sammlungs-Statistik",
+                    relative_plot_paths.get('collection_stats'),
+                    "Diese Visualisierung bietet einen Überblick über Ihre aktuelle Sammlung und Spielaktivitäten. Sie zeigt die Verteilung Ihrer bewerteten vs. besessenen Spiele, wie Sie Spiele bewerten, Ihre meistgespielten Spiele und Ihre Spielaktivität über die Zeit (sofern Daten verfügbar sind)."
+                )}
+
+                {ReportGenerator._generate_plot_section(
                     "Nutzerprofil-Analyse",
                     relative_plot_paths.get('user_prefs'),
                     "Diese Visualisierung zeigt die Präferenzen, die das Modell über Sie gelernt hat. Das <strong>Radar-Diagramm</strong> links zeigt Ihre Affinität zu den Top-Spielkategorien und -mechaniken. Je weiter ein Punkt vom Zentrum entfernt ist, desto stärker ist die Präferenz. Das <strong>Balkendiagramm</strong> rechts zeigt Ihre idealen numerischen Attribute für ein Spiel, wie Komplexität und Spieldauer."

@@ -38,6 +38,7 @@ class CacheManager:
         """
         self.cache_dir = cache_dir
         self.max_age_days = max_age_days
+        self.batch_mode = False
         self.ensure_cache_dir()
         
         # Cache-Typ-spezifische Konfiguration
@@ -48,6 +49,12 @@ class CacheManager:
             'model': {'extension': '.joblib', 'compress': True},
             'plot': {'extension': '.png', 'compress': False}
         }
+    
+    def set_batch_mode(self, enabled: bool):
+        """Aktiviert oder deaktiviert den Batch-Modus (keine Nutzerinteraktion)"""
+        self.batch_mode = enabled
+        if enabled:
+            print("🤖 Batch-Modus aktiviert: Keine Nutzerinteraktionen, keine neuen Daten.")
     
     def ensure_cache_dir(self):
         """Erstellt das Cache-Verzeichnis falls es nicht existiert"""
@@ -146,8 +153,17 @@ class CacheManager:
             age = datetime.now() - file_time
             age_info = f" (Alter: {age.days} Tage)"
         
+        if self.batch_mode:
+            print(f"🤖 Batch-Modus: Überspringe '{cache_description}' (keine Interaktion)")
+            return False
+
         while True:
-            choice = input(f"💭 {cache_description} laden?{age_info} (j/n): ").lower().strip()
+            try:
+                choice = input(f"💭 {cache_description} laden?{age_info} (j/n): ").lower().strip()
+            except EOFError:
+                print("   Non-interactive mode detected, defaulting to 'no'.")
+                return False
+            
             if choice in ['j', 'ja', 'y', 'yes']:
                 return True
             elif choice in ['n', 'nein', 'no']:

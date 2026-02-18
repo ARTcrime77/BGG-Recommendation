@@ -302,6 +302,7 @@ class BGGDataLoader:
     def load_top_games(self):
         """Lädt Top-Spiele und stellt sicher, dass TARGET_TOP_GAMES eindeutige verfügbar sind"""
         cache_result = self.cache.load_json_cache('top_games', 'games')
+        games = None
         
         if cache_result:
             games, metadata = cache_result
@@ -316,19 +317,28 @@ class BGGDataLoader:
                 update_choice = self.ask_user_update_choice(f"Aktualisierte Top {TARGET_TOP_GAMES}")
         else:
             print(f"📁 Kein Top {TARGET_TOP_GAMES} Cache gefunden")
-            update_choice = True
+            # Im Batch-Modus wird dies False zurückgeben, sonst True (Standard-Verhalten simulieren)
+            if self.cache.batch_mode:
+                update_choice = False
+            else:
+                update_choice = True
         
         if update_choice:
             top_games = self.scrape_bgg_top_games()
         else:
-            print(f"📖 Lade Top {TARGET_TOP_GAMES} aus lokalem Cache...")
-            top_games = games
-            cache_time = metadata.get('timestamp', 'Unbekannt')
-            stats = metadata.get('metadata', {}).get('stats', {})
-            
-            print(f"✓ {len(top_games)} Spiele aus Cache geladen (erstellt: {cache_time})")
-            if stats and stats.get('duplicates_removed', 0) > 0:
-                print(f"  Cache-Stats: {stats['duplicates_removed']} Duplikate entfernt von {stats['total_scraped']} ursprünglichen Spielen")
+            if games:
+                print(f"📖 Lade Top {TARGET_TOP_GAMES} aus lokalem Cache...")
+                top_games = games
+                cache_time = metadata.get('timestamp', 'Unbekannt')
+                stats = metadata.get('metadata', {}).get('stats', {})
+                
+                print(f"✓ {len(top_games)} Spiele aus Cache geladen (erstellt: {cache_time})")
+                if stats and stats.get('duplicates_removed', 0) > 0:
+                    print(f"  Cache-Stats: {stats['duplicates_removed']} Duplikate entfernt von {stats['total_scraped']} ursprünglichen Spielen")
+            else:
+                print("⚠️  Kein Cache vorhanden und Update abgelehnt (Batch-Modus).")
+                print("🔄 Verwende Fallback Top-Spiele...")
+                top_games = self.get_fallback_top_games()
         
         # Finale Validierung - stelle sicher, dass genug Spiele vorhanden sind
         if len(top_games) < TARGET_TOP_GAMES:
@@ -388,7 +398,7 @@ class BGGDataLoader:
                 update_choice = self.ask_user_update_choice("Aktualisierte Sammlung")
         else:
             print(f"📁 Keine Sammlung für {username} im Cache gefunden")
-            update_choice = True
+            update_choice = not self.cache.batch_mode
         
         if update_choice:
             games = self._fetch_user_collection_from_api(username)
@@ -467,7 +477,7 @@ class BGGDataLoader:
                 update_choice = self.ask_user_update_choice("Aktualisierte Spielstatistiken")
         else:
             print(f"📁 Keine Spielstatistiken für {username} im Cache gefunden")
-            update_choice = True
+            update_choice = not self.cache.batch_mode
         
         if update_choice:
             plays = self._fetch_user_plays_from_api(username, pages)
@@ -543,6 +553,10 @@ class BGGDataLoader:
         if not missing_ids:
             print(f"✓ Alle {len(game_ids)} Spieldetails bereits im Cache vorhanden")
             # Gib nur die angeforderten Spiele zurück
+            return {gid: cached_details[gid] for gid in game_ids if gid in cached_details}
+        
+        if self.cache.batch_mode:
+            print(f"🤖 Batch-Modus: Überspringe Laden von {len(missing_ids)} fehlenden Spieldetails.")
             return {gid: cached_details[gid] for gid in game_ids if gid in cached_details}
         
         print(f"📁 {len(cached_details)} Spiele im Cache, {len(missing_ids)} müssen geladen werden")

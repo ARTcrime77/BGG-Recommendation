@@ -9,18 +9,8 @@ import json
 import sys
 from datetime import datetime
 import matplotlib
-# Backend für macOS - versuche verschiedene Optionen
-try:
-    matplotlib.use('Qt5Agg')  # Versuche Qt5 zuerst
-except ImportError:
-    try:
-        matplotlib.use('MacOSX')  # Versuche macOS native Backend
-    except ImportError:
-        try:
-            matplotlib.use('Agg')  # Fallback: Dateien ohne GUI
-            print("⚠️ GUI-Backend nicht verfügbar - Plots werden als Dateien gespeichert")
-        except ImportError:
-            print("❌ Kein matplotlib Backend verfügbar")
+# Verwende Agg Backend für maximale Kompatibilität und Dateierzeugung
+matplotlib.use('Agg')
 
 from config import (
     DEBUG_SHOW_SIMILARITY_DETAILS,
@@ -51,6 +41,7 @@ class BGGRecommender:
         self.plays_data = None
         self.game_details = {}
         self.top_games_data = None
+        self.user_preferences = None
     
     def load_user_data(self):
         """Lädt alle Nutzerdaten (Sammlung und Spielstatistiken)"""
@@ -277,13 +268,22 @@ class BGGRecommender:
                     'features': os.path.join(plots_dir, f"features_{timestamp}.png"),
                     'user_prefs': os.path.join(plots_dir, f"user_prefs_{timestamp}.png"),
                     'era_complexity': os.path.join(plots_dir, f"era_complexity_{timestamp}.png"),
-                    'creators': os.path.join(plots_dir, f"creators_{timestamp}.png")
+                    'creators': os.path.join(plots_dir, f"creators_{timestamp}.png"),
+                    'collection_stats': os.path.join(plots_dir, f"collection_stats_{timestamp}.png")
                 }
             
             # Konfiguriere GUI-Anzeige
             original_show_gui = SHOW_PLOTS_GUI
             
             # Einzelne Plots erstellen
+            print("📊 Erstelle Sammlungs-Statistiken...")
+            self.visualizer.plot_user_collection_stats(
+                self.collection_data,
+                self.plays_data,
+                save_paths.get('collection_stats'),
+                show_gui=original_show_gui
+            )
+
             print("📊 Erstelle Nutzerprofil-Analyse...")
             self.visualizer.plot_user_preferences(
                 self.user_preferences,
@@ -446,6 +446,10 @@ class BGGRecommender:
         if not recommendations:
             return False
         
+        # Versuche Nutzerdaten zu laden (für Sammlungs-Stats)
+        print("🔍 Lade Nutzerdaten für Visualisierung...")
+        self.load_user_data()
+
         # Prüfe ob wir die nötigen Daten haben
         if not hasattr(self, 'top_games_data') or self.top_games_data is None:
             print("⚠️ Top-Games-Daten nicht verfügbar. Lade Basisdaten...")
@@ -459,6 +463,13 @@ class BGGRecommender:
                 print("❌ Konnte ML-Modell nicht trainieren")
                 return False
         
+        # Berechne Nutzerpräferenzen wenn nötig
+        if self.user_preferences is None and self.collection_data:
+            print("👤 Berechne Nutzerpräferenzen für Visualisierung...")
+            self.user_preferences = self.ml_engine.create_user_preferences_vector(
+                self.collection_data, self.plays_data, self.game_details
+            )
+
         # Erstelle Visualisierungen
         self.create_visualizations(recommendations)
         return True
@@ -471,7 +482,11 @@ def main():
     print("=" * 50)
     
     # Kommandozeilen-Argumente prüfen
-    if len(sys.argv) > 1 and sys.argv[1] == "--visualize-only":
+    batch_mode = "--batch" in sys.argv
+    if batch_mode:
+        cache_manager.set_batch_mode(True)
+
+    if "--visualize-only" in sys.argv:
         if not ENABLE_VISUALIZATIONS:
             print("❌ Visualisierungen sind deaktiviert (ENABLE_VISUALIZATIONS = False)")
             print("💡 Aktivieren Sie Visualisierungen in config.py")
