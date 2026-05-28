@@ -384,6 +384,8 @@ class BGGRecommender:
                 recommendations,
                 self.user_preferences,
                 plot_paths,
+                collection_data=self.collection_data,
+                plays_data=self.plays_data,
                 save_dir=os.getcwd() 
             )
 

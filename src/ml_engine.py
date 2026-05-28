@@ -34,6 +34,14 @@ class BGGMLEngine:
         self.feature_info = {}
         self.feature_names = []
     
+    def _is_scaler_fitted(self, scaler):
+        """Prüft ob der Scaler gefittet ist"""
+        try:
+            # Prüfe auf Attribute, die nur nach fit() existieren
+            return hasattr(scaler, 'mean_') and hasattr(scaler, 'scale_')
+        except:
+            return False
+
     def create_feature_matrix(self, games_df, force_recompute=False):
         """Erstellt Feature-Matrix für Machine Learning mit Caching"""
         if games_df is None or len(games_df) == 0:
@@ -53,14 +61,18 @@ class BGGMLEngine:
             cached_features = cache_manager.load_feature_cache(feature_cache_key)
             
             if cached_features and 'scaler' in cached_features:
-                self.feature_matrix = cached_features['features']
-                self.feature_info = cached_features['feature_info']
-                self.scaler = cached_features['scaler']
-                self.feature_names = cached_features['metadata'].get('feature_names', [])
-                
-                print(f"📁 Feature-Matrix aus Cache geladen")
-                print(f"   {self.feature_matrix.shape[0]} Spiele × {self.feature_matrix.shape[1]} Features")
-                return True
+                # Prüfe ob Scaler gefittet ist
+                if self._is_scaler_fitted(cached_features['scaler']):
+                    self.feature_matrix = cached_features['features']
+                    self.feature_info = cached_features['feature_info']
+                    self.scaler = cached_features['scaler']
+                    self.feature_names = cached_features['metadata'].get('feature_names', [])
+                    
+                    print(f"📁 Feature-Matrix aus Cache geladen")
+                    print(f"   {self.feature_matrix.shape[0]} Spiele × {self.feature_matrix.shape[1]} Features")
+                    return True
+                else:
+                    print("⚠️ Gecachter Scaler ist nicht gefittet. Ignoriere Cache.")
             elif cached_features:
                 print("️️⚠️ Veralteter Feature-Cache gefunden, wird ignoriert.")
         
@@ -337,14 +349,18 @@ class BGGMLEngine:
             cached_model = cache_manager.load_model_cache(f"knn_model_{matrix_hash}")
             
             if cached_model and 'scaler' in cached_model and cached_model['scaler'] is not None:
-                self.ml_model = cached_model['model']
-                self.scaler = cached_model['scaler']
-                # Feature-Matrix und Namen sind bereits gesetzt
-                
-                print(f"📁 ML-Modell aus Cache geladen")
-                print(f"  Trainiert mit: {len(self.feature_matrix)} Spielen")
-                print(f"  Features: {self.feature_matrix.shape[1]}")
-                return True
+                # Prüfe ob Scaler gefittet ist
+                if self._is_scaler_fitted(cached_model['scaler']):
+                    self.ml_model = cached_model['model']
+                    self.scaler = cached_model['scaler']
+                    # Feature-Matrix und Namen sind bereits gesetzt
+                    
+                    print(f"📁 ML-Modell aus Cache geladen")
+                    print(f"  Trainiert mit: {len(self.feature_matrix)} Spielen")
+                    print(f"  Features: {self.feature_matrix.shape[1]}")
+                    return True
+                else:
+                    print("⚠️ Gecachter Scaler im Modell ist nicht gefittet. Ignoriere Cache.")
             elif cached_model:
                 print("️️⚠️ Veralteter Modell-Cache gefunden, wird ignoriert.")
         

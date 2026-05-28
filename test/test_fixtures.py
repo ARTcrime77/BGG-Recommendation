@@ -51,7 +51,7 @@ MOCK_PLAYS_DATA = [
 
 # Mock Game Details
 MOCK_GAME_DETAILS = {
-    "174430": {
+    174430: {
         'name': 'Gloomhaven',
         'categories': ['Adventure', 'Exploration', 'Fantasy'],
         'mechanics': ['Action Point Allowance System', 'Card Drafting', 'Cooperative Play'],
@@ -65,7 +65,7 @@ MOCK_GAME_DETAILS = {
         'max_players': 4,
         'playing_time': 120
     },
-    "169786": {
+    169786: {
         'name': 'Scythe',
         'categories': ['Economic', 'Fighting', 'Science Fiction'],
         'mechanics': ['Area Control', 'Variable Player Powers', 'Worker Placement'],
@@ -79,7 +79,7 @@ MOCK_GAME_DETAILS = {
         'max_players': 5,
         'playing_time': 115
     },
-    "167791": {
+    167791: {
         'name': 'Terraforming Mars',
         'categories': ['Economic', 'Environmental', 'Science Fiction'],
         'mechanics': ['Card Drafting', 'Hand Management', 'Tile Placement'],
